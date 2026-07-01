@@ -192,5 +192,13 @@
   "scalprum/scaffolding": {
     "url": "https://github.com/platex-rehor-bot/scaffolding.git",
     "upstream": "https://github.com/scalprum/scaffolding.git"
+  },
+  "patternfly/widgetized-dashboard": {
+    "url": "https://github.com/platex-rehor-bot/widgetized-dashboard.git",
+    "upstream": "https://github.com/patternfly/widgetized-dashboard.git"
+  },
+  "patternfly/react-data-view": {
+    "url": "https://github.com/platex-rehor-bot/react-data-view.git",
+    "upstream": "https://github.com/patternfly/react-data-view.git"
   }
 }

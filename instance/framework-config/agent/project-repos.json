@@ -113,6 +113,11 @@
     "upstream": "https://gitlab.cee.redhat.com/insights-platform/caddy-ubi.git",
     "host": "gitlab"
   },
+  "unleash-proxy": {
+    "url": "https://gitlab.cee.redhat.com/platform-experience-services-bot/unleash-proxy.git",
+    "upstream": "https://gitlab.cee.redhat.com/automation-analytics/unleash-proxy.git",
+    "host": "gitlab"
+  },
   "api-documentation-frontend": {
     "url": "https://github.com/platex-rehor-bot/api-documentation-frontend.git",
     "upstream": "https://github.com/RedHatInsights/api-documentation-frontend.git"

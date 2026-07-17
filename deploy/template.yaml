@@ -35,6 +35,12 @@ parameters:
   required: true
 - name: SLACK_WEBHOOK_URL
   value: ""
+- name: KEDA_TIMEZONE
+  value: "Europe/Prague"
+- name: KEDA_CRON_START
+  value: "0 9 * * 1-5"
+- name: KEDA_CRON_END
+  value: "0 23 * * 1-5"
 objects:
 
 # ============================================================================
@@ -239,7 +245,9 @@ objects:
       - port: 5353
         protocol: TCP
 
-# --- Cron Scaler: active 9am Prague time (Mon-Fri), shuts down 5pm ET (summer) / 6pm ET (winter) ---
+# --- KEDA Cron Scaler ---
+# Override KEDA_TIMEZONE, KEDA_CRON_START, KEDA_CRON_END per deployment
+# target in the app-interface SaaS file.
 - apiVersion: keda.sh/v1alpha1
   kind: ScaledObject
   metadata:
@@ -257,7 +265,7 @@ objects:
     triggers:
     - type: cron
       metadata:
-        timezone: "Europe/Prague"
-        start: "0 9 * * 1-5"
-        end: "0 23 * * 1-5"
+        timezone: ${KEDA_TIMEZONE}
+        start: ${KEDA_CRON_START}
+        end: ${KEDA_CRON_END}
         desiredReplicas: "1"

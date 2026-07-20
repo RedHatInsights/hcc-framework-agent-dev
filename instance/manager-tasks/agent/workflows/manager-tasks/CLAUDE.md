@@ -10,6 +10,22 @@ corresponding section below.
 - Skip VPN/LDAP checks — this pod has no VPN access
 - One task per cycle — complete it fully before the cycle ends
 
+## Task ID
+
+Each task has a **Task ID** in the preflight data (format: `{task-name}-{YYYY-MM-DD}`).
+Use it as the `external_key` for all `task_add` / `task_get` calls. The ID is
+stable across phases — generate, feedback, and merge for the same weekly report
+all share the same Task ID (e.g. `weekly-report-2026-07-25`).
+
+At the start of each cycle:
+1. Call `task_get` with the Task ID to check if it already exists
+2. If it exists and status is `done`, skip (already completed)
+3. If it exists and status is `in_progress`, resume from where it left off
+4. If it doesn't exist, call `task_add` to create it with `source_type: scheduled`
+
+At the end of each cycle:
+- Update the task with `task_update` — set status, summary, and metadata
+
 ---
 
 ## Task: weekly-report-generate

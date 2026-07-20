@@ -3,6 +3,7 @@ type: workflow
 description: Scheduled manager tasks — weekly reports, Jira cleanup, and more
 
 preflight:
+  - 00-cycle-sleep.py
   - 01-task-dispatch.py
 
 shared_skills:

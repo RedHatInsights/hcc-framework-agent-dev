@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Manager tasks preflight — dispatch tasks based on day of week.
+"""Task dispatch — decides which task to run this cycle.
 
-Checks each registered task's schedule and readiness conditions.
+Checks each registered task's day schedule and readiness conditions.
 Outputs the first actionable task, or skip if nothing to do.
+
+Cycle frequency is handled by 00-cycle-sleep.py (separate concern).
 """
 
 import json
+import os
 import subprocess
 import sys
 from datetime import date, timedelta
@@ -13,13 +16,25 @@ from datetime import date, timedelta
 
 UPSTREAM_REPO = "RedHatInsights/weekly-status"
 BRANCH_PATTERN = "hcc-team-weekly-report"
+BOT_USERS = {
+    os.environ.get("GH_USER_NAME", "platex-rehor-bot").lower(),
+    "platex-rehor-bot",
+}
 
 
 def _friday_of_week(d=None):
     """Calculate the Friday of the current reporting week.
 
-    Thursday through Saturday map to the same-week Friday.
-    Sunday maps to the previous Friday (completed week).
+    The weekly-status repo organizes reports by Friday date (e.g.
+    reports/2026/2026-07-25/). This function figures out which
+    Friday the current day belongs to:
+      - Mon–Sat → the upcoming (or current) Friday of that week
+      - Sunday  → the previous Friday (that week is already done)
+
+    Examples:
+      Tuesday  2026-07-22 → Friday 2026-07-25
+      Friday   2026-07-25 → Friday 2026-07-25
+      Sunday   2026-07-27 → Friday 2026-07-25
     """
     if d is None:
         d = date.today()
@@ -31,7 +46,13 @@ def _friday_of_week(d=None):
 
 
 def _gh_json(args):
-    """Run a gh CLI command and return parsed JSON, or None on failure."""
+    """Run a GitHub CLI command and parse the JSON output.
+
+    Wraps `gh <args>` in a subprocess with a 30s timeout.
+    Returns the parsed JSON object, or None if the command fails,
+    returns empty output, or produces invalid JSON. Errors are
+    logged to stderr (visible in preflight logs, not in the prompt).
+    """
     try:
         proc = subprocess.run(
             ["gh"] + args,
@@ -52,7 +73,15 @@ def _gh_json(args):
 
 
 def _find_weekly_pr(friday_str):
-    """Find an open or merged PR for this week's report."""
+    """Search GitHub for an existing PR for this week's report.
+
+    Looks for PRs in the upstream repo whose title and branch name
+    contain the Friday date string (e.g. "hcc-team-weekly-report-2026-07-25").
+    Searches all states (open, merged, closed) so we can detect
+    already-merged PRs and skip the generate phase.
+
+    Returns the PR dict (number, state, url, reviews, etc.) or None.
+    """
     prs = _gh_json([
         "pr", "list",
         "--repo", UPSTREAM_REPO,
@@ -72,61 +101,131 @@ def _find_weekly_pr(friday_str):
 
 
 def _has_changes_requested(pr):
-    """Check if any review has CHANGES_REQUESTED state."""
+    """Check if any reviewer has requested changes on the PR.
+
+    A PR with CHANGES_REQUESTED reviews must not be auto-merged.
+    The bot should address the feedback first.
+    """
     reviews = pr.get("reviews", [])
     return any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
 
 
-def _get_review_comments(pr):
-    """Fetch review comments on the PR."""
+def _is_bot(login):
+    """Check if a GitHub login belongs to our bot account.
+
+    Used to distinguish bot comments/reviews from human ones when
+    determining whether feedback has already been addressed.
+    """
+    return login.lower() in BOT_USERS
+
+
+def _get_unaddressed_comments(pr):
+    """Fetch PR comments that the bot hasn't addressed yet.
+
+    Fetches all comments and reviews on the PR, then filters to only
+    those from humans that arrived AFTER the bot's most recent reply.
+
+    This is the key cost-saving check: if a reviewer left feedback at
+    3pm and the bot replied at 3:15pm, the next preflight cycle sees
+    no unaddressed comments and skips — no Claude session started,
+    no tokens spent. Only genuinely new feedback triggers a session.
+
+    Returns a list of unaddressed comment dicts, or empty list if
+    everything has been handled.
+    """
     number = pr.get("number")
     if not number:
         return []
-    comments = _gh_json([
+    data = _gh_json([
         "pr", "view", str(number),
         "--repo", UPSTREAM_REPO,
         "--json", "comments,reviews",
     ])
-    if not comments:
+    if not data:
         return []
 
-    result = []
-    for review in comments.get("reviews", []):
+    all_items = []
+    for review in data.get("reviews", []):
         body = review.get("body", "").strip()
-        if body:
-            result.append({
-                "author": review.get("author", {}).get("login", "unknown"),
-                "state": review.get("state", ""),
-                "body": body,
-            })
-    for comment in comments.get("comments", []):
+        if not body:
+            continue
+        author = review.get("author", {}).get("login", "unknown")
+        all_items.append({
+            "author": author,
+            "state": review.get("state", ""),
+            "body": body,
+            "createdAt": review.get("submittedAt", review.get("createdAt", "")),
+            "is_bot": _is_bot(author),
+        })
+    for comment in data.get("comments", []):
         body = comment.get("body", "").strip()
-        if body:
-            result.append({
-                "author": comment.get("author", {}).get("login", "unknown"),
-                "body": body,
-            })
-    return result
+        if not body:
+            continue
+        author = comment.get("author", {}).get("login", "unknown")
+        all_items.append({
+            "author": author,
+            "body": body,
+            "createdAt": comment.get("createdAt", ""),
+            "is_bot": _is_bot(author),
+        })
+
+    last_bot_action = max(
+        (item["createdAt"] for item in all_items if item["is_bot"] and item["createdAt"]),
+        default="",
+    )
+
+    unaddressed = [
+        item for item in all_items
+        if not item["is_bot"]
+        and item.get("createdAt", "") > last_bot_action
+    ]
+
+    if not unaddressed and last_bot_action:
+        print(
+            f"All {len(all_items)} comments already addressed (bot last acted: {last_bot_action})",
+            file=sys.stderr,
+        )
+
+    return unaddressed
 
 
 def check_weekly_report():
-    """Check weekly report readiness. Returns (should_run, task_name, content) or (False, None, reason)."""
+    """Decide what weekly-report action to take this cycle.
+
+    This is the main decision function for the weekly-report task.
+    It checks the current day and PR state to determine which phase
+    we're in:
+
+    1. Tuesday, no PR exists     → generate reports, open PR
+    2. PR open, new feedback     → address the review comments
+    3. Wednesday, no blockers    → merge the PR
+    4. PR already merged/closed  → nothing to do, skip
+
+    Returns a tuple of (should_run, task_name, content):
+      - should_run: True if a Claude session should start
+      - task_name:  which task section the workflow should follow
+      - content:    prompt data for the session (or skip reason)
+    """
     today = date.today()
     weekday = today.weekday()  # Monday=0, Tuesday=1, Wednesday=2
 
-    if weekday not in (1, 2):  # Only Tuesday and Wednesday
-        return False, None, "Not Tuesday or Wednesday"
+    # TODO: Remove Monday (0) once testing is complete
+    if weekday not in (0, 1, 2):  # Monday (testing), Tuesday, Wednesday
+        return False, None, "Not Monday-Wednesday"
 
     friday = _friday_of_week(today)
     friday_str = friday.isoformat()
 
     pr = _find_weekly_pr(friday_str)
 
+    task_id = f"weekly-report-{friday_str}"
+
     if pr is None:
         if weekday == 1:  # Tuesday, no PR — generate
             content = (
                 f"## TASK: weekly-report-generate\n\n"
                 f"Generate HCC weekly status reports for week ending {friday_str}.\n\n"
+                f"- **Task ID**: {task_id}\n"
                 f"- **Scope**: hcc-team all (all HCC sub-teams)\n"
                 f"- **Repo**: {UPSTREAM_REPO}\n"
                 f"- **Branch**: {{git_user}}/{BRANCH_PATTERN}-{friday_str}\n"
@@ -146,7 +245,7 @@ def check_weekly_report():
         return False, None, f"PR #{pr_number} was closed"
 
     # PR is open
-    comments = _get_review_comments(pr)
+    comments = _get_unaddressed_comments(pr)
     has_feedback = len(comments) > 0
 
     if has_feedback and _has_changes_requested(pr):
@@ -157,6 +256,7 @@ def check_weekly_report():
         content = (
             f"## TASK: weekly-report-feedback\n\n"
             f"Address review feedback on PR #{pr_number}.\n\n"
+            f"- **Task ID**: {task_id}\n"
             f"- **PR**: {pr_url}\n"
             f"- **Branch**: {pr.get('headRefName', '?')}\n"
             f"- **Friday date**: {friday_str}\n\n"
@@ -173,6 +273,7 @@ def check_weekly_report():
             content = (
                 f"## TASK: weekly-report-feedback\n\n"
                 f"Address review feedback on PR #{pr_number} before merge.\n\n"
+                f"- **Task ID**: {task_id}\n"
                 f"- **PR**: {pr_url}\n"
                 f"- **Branch**: {pr.get('headRefName', '?')}\n"
                 f"- **Friday date**: {friday_str}\n\n"
@@ -183,6 +284,7 @@ def check_weekly_report():
         content = (
             f"## TASK: weekly-report-merge\n\n"
             f"Merge the weekly report PR — no blocking reviews.\n\n"
+            f"- **Task ID**: {task_id}\n"
             f"- **PR**: {pr_url}\n"
             f"- **PR number**: {pr_number}\n"
             f"- **Friday date**: {friday_str}\n"
@@ -198,6 +300,7 @@ def check_weekly_report():
         content = (
             f"## TASK: weekly-report-feedback\n\n"
             f"Address review comments on PR #{pr_number}.\n\n"
+            f"- **Task ID**: {task_id}\n"
             f"- **PR**: {pr_url}\n"
             f"- **Branch**: {pr.get('headRefName', '?')}\n"
             f"- **Friday date**: {friday_str}\n\n"
@@ -212,7 +315,7 @@ def check_weekly_report():
 TASKS = [
     {
         "name": "weekly-report",
-        "days": [1, 2],  # Tuesday, Wednesday
+        "days": [0, 1, 2],  # Monday (testing), Tuesday, Wednesday  # TODO: Remove 0 once testing is complete
         "check": check_weekly_report,
     },
     # Future tasks:
@@ -221,6 +324,13 @@ TASKS = [
 
 
 def main():
+    """Entry point — iterate the task registry and dispatch the first match.
+
+    Walks through TASKS in order. For each task scheduled for today,
+    calls its check function. The first one that returns should_run=True
+    gets dispatched (its content becomes the Claude session prompt).
+    If nothing matches, outputs skip — no session starts.
+    """
     today = date.today()
     weekday = today.weekday()
 
@@ -231,20 +341,14 @@ def main():
         should_run, task_name, content = task["check"]()
 
         if should_run:
-            print(
-                f"Dispatching task: {task_name}",
-                file=sys.stderr,
-            )
+            print(f"Dispatching task: {task_name}", file=sys.stderr)
             json.dump(
                 {"status": "start", "content": content},
                 sys.stdout,
             )
             return
 
-        print(
-            f"Task {task['name']} skipped: {content}",
-            file=sys.stderr,
-        )
+        print(f"Task {task['name']} skipped: {content}", file=sys.stderr)
 
     json.dump(
         {"status": "skip", "content": f"No tasks to run today ({today.strftime('%A')})"},

@@ -1,0 +1,24 @@
+name: hcc-manager-tasks
+type: workflow
+description: Scheduled manager tasks — weekly reports, Jira cleanup, and more
+
+preflight:
+  - 00-cycle-sleep.py
+  - 01-task-dispatch.py
+
+shared_skills:
+  - push-and-pr
+  - post-pr
+  - auto-fork
+
+provides:
+  claude_md: CLAUDE.md
+
+requires:
+  mcp_servers:
+    - bot-memory
+    - mcp-atlassian
+  env_vars:
+    - BOT_INSTANCE_ID
+  optional_env_vars:
+    - SLACK_WEBHOOK_URL

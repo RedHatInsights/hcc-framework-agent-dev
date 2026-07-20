@@ -1,0 +1,7 @@
+workflow: ./workflows/manager-tasks
+source: scheduled
+envs:
+  - slack
+  - node
+claude_md:
+  strategy: append

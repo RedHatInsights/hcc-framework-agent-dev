@@ -7,7 +7,7 @@
 
 ## Weekly Status Report
 
-- **Repo**: `karelhala/hp-weekly-status`
+- **Repo**: `RedHatInsights/weekly-status`
 - **Scope**: `hcc-team all` (generate reports for all HCC sub-teams)
 - **Schedule**: Tuesday generate + PR, Wednesday auto-merge
 - **Merge policy**: auto-merge on Wednesday unless any GitHub review has `CHANGES_REQUESTED` status

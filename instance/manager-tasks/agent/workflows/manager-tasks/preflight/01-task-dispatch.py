@@ -11,7 +11,7 @@ import sys
 from datetime import date, timedelta
 
 
-UPSTREAM_REPO = "karelhala/hp-weekly-status"
+UPSTREAM_REPO = "RedHatInsights/weekly-status"
 BRANCH_PATTERN = "hcc-team-weekly-report"
 
 

@@ -121,7 +121,7 @@ Generate HCC weekly status reports and open a PR for review.
 
    ```bash
    gh pr create \
-       --repo karelhala/hp-weekly-status \
+       --repo RedHatInsights/weekly-status \
        --title "HCC team weekly reports — week ending {friday}" \
        --body "Auto-generated HCC team weekly status reports.
 
@@ -186,7 +186,7 @@ Merge the weekly report PR if there are no blocking reviews.
 
    ```bash
    gh pr view {pr_number} \
-       --repo karelhala/hp-weekly-status \
+       --repo RedHatInsights/weekly-status \
        --json reviews,reviewDecision
    ```
 
@@ -200,7 +200,7 @@ Merge the weekly report PR if there are no blocking reviews.
 
    ```bash
    gh pr merge {pr_number} \
-       --repo karelhala/hp-weekly-status \
+       --repo RedHatInsights/weekly-status \
        --squash \
        --delete-branch
    ```

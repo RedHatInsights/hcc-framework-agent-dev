@@ -7,7 +7,6 @@ corresponding section below.
 
 **Rules**:
 - Never use `AskUserQuestion` — all parameters come from the preflight
-- Skip VPN/LDAP checks — this pod has no VPN access
 - One task per cycle — complete it fully before the cycle ends
 
 ## Task ID

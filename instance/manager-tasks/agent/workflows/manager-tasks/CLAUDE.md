@@ -1,42 +1,33 @@
 # Manager Tasks Workflow
 
-Scheduled workflow that runs recurring manager tasks. Each cycle, the
-preflight script determines which task to run and passes it as a
-`TASK:` header in the prompt. Read the task name and follow the
-corresponding section below.
+Scheduled workflow for recurring manager tasks. Preflight determines task via `TASK:` header. Follow matching section.
 
 **Rules**:
-- Never use `AskUserQuestion` — all parameters come from the preflight
-- One task per cycle — complete it fully before the cycle ends
+- Never use `AskUserQuestion` — all params from preflight
+- One task per cycle — complete fully
 
 ## Task ID
 
-Each task has a **Task ID** in the preflight data (format: `{task-name}-{YYYY-MM-DD}`).
-Use it as the `external_key` for all `task_add` / `task_get` calls. The ID is
-stable across phases — generate, feedback, and merge for the same weekly report
-all share the same Task ID (e.g. `weekly-report-2026-07-25`).
+Format: `{task-name}-{YYYY-MM-DD}`. Stable across phases (generate/feedback/merge share same ID).
 
-At the start of each cycle:
-1. Call `task_get` with the Task ID to check if it already exists
-2. If it exists and status is `done`, skip (already completed)
-3. If it exists and status is `in_progress`, resume from where it left off
-4. If it doesn't exist, call `task_add` to create it with `source_type: scheduled`
+Preflight already checked task state. If done or no work, you wouldn't be running. Preflight data includes `task_status`:
 
-At the end of each cycle:
-- Update the task with `task_update` — set status, summary, and metadata
+- `task_status: new` → call `task_add` with Task ID as `external_key`, `source_type: scheduled`
+- `task_status: in_progress` → task exists, continue working
+
+End of cycle: call `task_update` with status, summary, metadata.
 
 ---
 
 ## Task: weekly-report-generate
 
-Generate HCC weekly status reports and open a PR for review.
+Generate HCC weekly reports + open PR.
+
+**IMPORTANT**: All scripts, prompts, context files live in `hp-weekly-status` repo (from project-repos). `cd` into it first. All paths relative to its root — e.g. `.claude/skills/weekly-status/scripts/detect_week.py` = `hp-weekly-status/.claude/skills/weekly-status/scripts/detect_week.py`. Do NOT look in bot's own dir or recreate them.
 
 ### Steps
 
-1. **Set up the repo**
-
-   Clone `hp-weekly-status` from project-repos if not already cloned.
-   Then sync with upstream:
+1. **Set up repo** — clone `hp-weekly-status` if needed, sync + cd into it:
 
    ```bash
    cd hp-weekly-status
@@ -44,87 +35,63 @@ Generate HCC weekly status reports and open a PR for review.
    git checkout upstream/main
    ```
 
-2. **Calculate the week**
-
-   Run the week detection script:
+2. **Calculate week** (inside `hp-weekly-status`):
 
    ```bash
    python3 .claude/skills/weekly-status/scripts/detect_week.py
    ```
 
-   Parse the JSON output to get `friday`, `week_dir`, and `git_user`.
+   Parse JSON → `friday`, `week_dir`, `git_user`.
 
-3. **Create a working branch**
+3. **Create branch**:
 
    ```bash
    git checkout -b {git_user}/hcc-team-weekly-report-{friday}
    ```
 
-4. **Discover teams**
+4. **Discover teams**:
 
    ```bash
    python3 .claude/skills/weekly-status/scripts/discover_reports.py --report hcc-team --team all
    ```
 
-   Parse the JSON output to get the list of teams and their context files.
+   Parse JSON → team list + context files.
 
-5. **Generate reports for each team**
+5. **Generate reports per team**:
 
-   For each team in the discovery output:
-
-   a. Read the team's context file (e.g. `context/fleet/hcc/framework.md`)
-      to get Jira filter lines and GitHub repositories.
-
-   b. Read the generation prompt at `prompts/team-report.md` and the
-      style guide at `STYLE_GUIDE.md`.
-
-   c. Read the previous week's report for this team (if it exists) from
-      the previous week's directory to avoid content duplication.
-
-   d. **Collect Jira data** using the Jira MCP server:
-      - Build JQL from the context file's filter lines
-      - Query for issues closed/resolved during the reporting period
-        (Thursday through Wednesday of the target week)
-      - Query for issues in Review state (momentum/pipeline)
-      - Use `jira_search` with pagination (`page_token`, NOT `start_at`)
-
-   e. **Collect GitHub data**:
+   a. Read context file (e.g. `context/fleet/hcc/framework.md`) → Jira filters + GitHub repos
+   b. Read `prompts/team-report.md` + `STYLE_GUIDE.md`
+   c. Read previous week's report (if exists) to avoid duplication
+   d. **Jira data** via MCP: build JQL from context, query closed/resolved issues (Thu–Wed period) + Review state. Use `jira_search` with `page_token` pagination (NOT `start_at`)
+   e. **GitHub data**:
       ```bash
       cd collectors && python3 collect_github.py \
           {REPO1} {REPO2} ... --start {thursday} --end {wednesday}
       ```
-      If `uv` is available, use `uv run` instead of `python3` directly.
-      Read repos from the context file's "GitHub Repositories" section.
+      Use `uv run` if available. Repos from context file's "GitHub Repositories".
+   f. **Write report** per `prompts/team-report.md` to `{week_dir}/{output_file}`. Create output dir if needed.
 
-   f. **Generate the team report** following `prompts/team-report.md`
-      instructions. Write to `{week_dir}/{output_file}` (e.g.
-      `reports/2026/2026-07-17/fleet/hcc/framework.md`).
-      Create the output directory if it doesn't exist.
-
-6. **Generate combined view**
-
-   After all individual team reports are written:
+6. **Combined view** after all teams:
 
    ```bash
    python3 .claude/skills/weekly-status/scripts/combine_reports.py \
        {week_dir}/{output_dir}
    ```
 
-7. **Validate** (best-effort)
+7. **Validate** (best-effort):
 
    ```bash
    pre-commit run --files {generated_files}
    ```
 
-   If pre-commit is not available, try:
+   Fallback:
    ```bash
    npx markdownlint --config .markdownlint.json {generated_files}
    ```
 
-   If validation fails, fix the issues. If tools are unavailable, skip —
-   CI will catch problems on the PR.
+   Fix failures. If tools unavailable, skip — CI catches on PR.
 
-8. **Commit and push**
+8. **Commit + push**:
 
    ```bash
    git add {week_dir}/
@@ -132,7 +99,7 @@ Generate HCC weekly status reports and open a PR for review.
    git push -u origin {branch_name}
    ```
 
-9. **Create the PR**
+9. **Create PR**:
 
    ```bash
    gh pr create \
@@ -149,23 +116,19 @@ Generate HCC weekly status reports and open a PR for review.
    _Generated by devbot-framework-manager_"
    ```
 
-10. **Notify Slack**
-
-    Post the PR link to Slack using the webhook (via the `post-pr` shared
-    skill or direct curl).
+10. **Notify Slack** — post PR link via `post-pr` shared skill or direct curl.
 
 ---
 
 ## Task: weekly-report-feedback
 
-Address review feedback on the weekly report PR.
+Address review feedback on weekly report PR.
 
 ### Steps
 
-1. **Read feedback** from the preflight data — it includes PR comments
-   and review details.
+1. **Read feedback** from preflight data (PR comments + review details).
 
-2. **Check out the PR branch** and pull latest:
+2. **Checkout PR branch**:
 
    ```bash
    cd hp-weekly-status
@@ -174,12 +137,9 @@ Address review feedback on the weekly report PR.
    git pull
    ```
 
-3. **Address each comment**:
-   - Read the comment text and the file/line it references
-   - Edit the report file to address the feedback
-   - If a comment is unclear, make a reasonable interpretation
+3. **Address each comment** — read text + file/line reference, edit report. If unclear, interpret reasonably.
 
-4. **Commit and push** the fixes:
+4. **Commit + push**:
 
    ```bash
    git add -A
@@ -187,13 +147,13 @@ Address review feedback on the weekly report PR.
    git push
    ```
 
-5. **Reply to comments** on the PR to acknowledge they've been addressed.
+5. **Reply to comments** on PR to acknowledge.
 
 ---
 
 ## Task: weekly-report-merge
 
-Merge the weekly report PR if there are no blocking reviews.
+Merge weekly report PR if no blocking reviews.
 
 ### Steps
 
@@ -205,11 +165,7 @@ Merge the weekly report PR if there are no blocking reviews.
        --json reviews,reviewDecision
    ```
 
-2. **Decision**:
-   - If ANY review has `CHANGES_REQUESTED` state → **do NOT merge**.
-     Post a Slack message noting the block and which reviewer requested
-     changes.
-   - If no blocking reviews → proceed to merge.
+2. **Decision**: `CHANGES_REQUESTED` → do NOT merge, post Slack noting block + reviewer. No blockers → merge.
 
 3. **Merge**:
 
@@ -220,22 +176,18 @@ Merge the weekly report PR if there are no blocking reviews.
        --delete-branch
    ```
 
-4. **Notify Slack** that the report has been merged.
+4. **Notify Slack** — report merged.
 
 ---
 
 ## Task: jira-cleanup
 
-_Placeholder — instructions will be added when this task is defined._
+_Placeholder — TBD._
 
 ---
 
 ## Adding New Tasks
 
-To add a new recurring task:
-
-1. Add a check function to `preflight/01-task-dispatch.py` with the
-   task's day schedule and readiness check
-2. Add a `## Task: {name}` section to this file with the step-by-step
-   instructions
-3. No deployment changes needed — the preflight handles scheduling
+1. Add check function to `preflight/01-task-dispatch.py` with day schedule + readiness check
+2. Add `## Task: {name}` section here
+3. No deployment changes needed — preflight handles scheduling

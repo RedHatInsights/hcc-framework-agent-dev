@@ -8,11 +8,11 @@
 ## Weekly Status Report
 
 - **Repo**: `RedHatInsights/weekly-status`
-- **Scope**: `hcc-team all` (generate reports for all HCC sub-teams)
-- **Schedule**: Tuesday generate + PR, Wednesday auto-merge
-- **Merge policy**: auto-merge on Wednesday unless any GitHub review has `CHANGES_REQUESTED` status
+- **Scope**: `hcc-team all` (all HCC sub-teams)
+- **Schedule**: Tuesday generate+PR, Wednesday auto-merge
+- **Merge policy**: auto-merge Wednesday unless `CHANGES_REQUESTED` review exists
 
 ## Environment Constraints
 
-- **Non-interactive mode**: Never use `AskUserQuestion` or prompt for confirmation. All task parameters are provided by the preflight dispatch. When the weekly-status workflow would normally ask for confirmation (target week, branch creation, report type), proceed with the values from the preflight data.
-- **Pre-commit**: If `uvx` or `npx` is not available for pre-commit hooks, run `markdownlint` directly on generated files instead. If that also fails, skip validation — CI on the PR will catch formatting issues.
+- **Non-interactive**: Never use `AskUserQuestion`. All params from preflight. Proceed with preflight values for target week, branch, report type.
+- **Pre-commit**: If `uvx`/`npx` unavailable, run `markdownlint` directly. If that fails too, skip — CI catches issues on PR.

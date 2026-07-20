@@ -91,13 +91,14 @@ def check_weekly_report():
     tasks = get_tasks()
     task = _find_task_for_week(tasks, friday_str)
 
-    # No task exists yet — generate phase (Tuesday only)
+    # No task exists yet — generate phase
     if task is None:
         if weekday in (0, 1):  # Monday (testing) or Tuesday
             content = (
                 f"## TASK: weekly-report-generate\n\n"
                 f"Generate HCC weekly status reports for week ending {friday_str}.\n\n"
                 f"- **Task ID**: {task_id}\n"
+                f"- **Task status**: new\n"
                 f"- **Scope**: hcc-team all (all HCC sub-teams)\n"
                 f"- **Repo**: {UPSTREAM_REPO}\n"
                 f"- **Branch**: {{git_user}}/{BRANCH_PATTERN}-{friday_str}\n"
@@ -143,6 +144,7 @@ def check_weekly_report():
                 f"## TASK: weekly-report-feedback\n\n"
                 f"Address review feedback on the weekly report PR.\n\n"
                 f"- **Task ID**: {task_id}\n"
+                f"- **Task status**: in_progress\n"
                 f"- **Friday date**: {friday_str}\n\n"
                 f"### PR Details\n\n" + "\n".join(lines) + "\n"
             )
@@ -155,6 +157,7 @@ def check_weekly_report():
                 f"## TASK: weekly-report-merge\n\n"
                 f"Merge the weekly report PR — no blocking reviews.\n\n"
                 f"- **Task ID**: {task_id}\n"
+                f"- **Task status**: in_progress\n"
                 f"- **PR**: {pr_info.get('repo', UPSTREAM_REPO)}#{pr_info.get('num', '?')}\n"
                 f"- **Friday date**: {friday_str}\n"
             )

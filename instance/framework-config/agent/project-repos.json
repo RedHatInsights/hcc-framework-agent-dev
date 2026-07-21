@@ -205,5 +205,9 @@
   "patternfly/react-data-view": {
     "url": "https://github.com/platex-rehor-bot/react-data-view.git",
     "upstream": "https://github.com/patternfly/react-data-view.git"
+  },
+  "project-kessel/kessel-sdk-browser": {
+    "url": "https://github.com/platex-rehor-bot/kessel-sdk-browser.git",
+    "upstream": "https://github.com/project-kessel/kessel-sdk-browser.git"
   }
 }

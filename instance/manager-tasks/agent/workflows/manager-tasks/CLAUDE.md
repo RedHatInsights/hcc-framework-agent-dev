@@ -124,9 +124,15 @@ Generate HCC weekly reports + open PR.
 
 Address review feedback on weekly report PR.
 
+**IMPORTANT**: All review comments are already in your prompt — the preflight
+fetched them. Do NOT re-fetch comments from GitHub. Do NOT call `gh pr view`,
+`gh api repos/.../comments`, or any GitHub API to read feedback. The data is
+already here. Just read the "PR Details" / "Review Comments" section in your
+prompt and act on it.
+
 ### Steps
 
-1. **Read feedback** from preflight data (PR comments + review details).
+1. **Read feedback** already in your prompt (the "PR Details" section above).
 
 2. **Checkout PR branch**:
 

@@ -80,9 +80,9 @@ def check_weekly_report():
     today = date.today()
     weekday = today.weekday()  # Monday=0, Tuesday=1, Wednesday=2
 
-    # TODO: Remove Monday (0) once testing is complete
-    if weekday not in (0, 1, 2):  # Monday (testing), Tuesday, Wednesday
-        return False, None, "Not Monday-Wednesday"
+    # TODO: Remove Monday (0) and Friday (4) once testing is complete
+    if weekday not in (0, 1, 2, 4):  # Monday (testing), Tuesday, Wednesday, Friday (testing)
+        return False, None, "Not a scheduled day"
 
     friday = _friday_of_week(today)
     friday_str = friday.isoformat()
@@ -93,7 +93,7 @@ def check_weekly_report():
 
     # No task exists yet — generate phase
     if task is None:
-        if weekday in (0, 1):  # Monday (testing) or Tuesday
+        if weekday in (0, 1, 4):  # Monday (testing), Tuesday, Friday (testing)
             content = (
                 f"## TASK: weekly-report-generate\n\n"
                 f"Generate HCC weekly status reports for week ending {friday_str}.\n\n"
@@ -170,7 +170,7 @@ def check_weekly_report():
 TASKS = [
     {
         "name": "weekly-report",
-        "days": [0, 1, 2],  # Monday (testing), Tuesday, Wednesday  # TODO: Remove 0 once testing is complete
+        "days": [0, 1, 2, 4],  # Monday (testing), Tuesday, Wednesday, Friday (testing)  # TODO: Remove 0,4 once testing is complete
         "check": check_weekly_report,
     },
     # Future tasks:

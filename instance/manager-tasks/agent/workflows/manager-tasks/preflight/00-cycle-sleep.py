@@ -31,8 +31,11 @@ CYCLE_SLEEP_FILE = SCRIPT_DIR / "data" / "cycle-sleep.json"
 #   11am–2pm  → 20min  (final push before merge)
 #   2pm+      → 24h    (merge done, wait for KEDA to scale down)
 SCHEDULE = {
-    # TODO: Remove Monday once testing is complete
+    # TODO: Remove Monday and Friday once testing is complete
     0: [  # Monday (testing only)
+        (7, 21, 1200),
+    ],
+    4: [  # Friday (testing only)
         (7, 21, 1200),
     ],
     1: [  # Tuesday

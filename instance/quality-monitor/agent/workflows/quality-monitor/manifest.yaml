@@ -1,0 +1,22 @@
+name: quality-monitor
+type: workflow
+description: Monitor code quality - detect merge violations and test anti-patterns
+
+preflight:
+  - 01-check-merged-prs.py
+  - 02-scan-test-anti-patterns.py
+
+provides:
+  claude_md: CLAUDE.md
+
+requires:
+  mcp_servers:
+    - bot-memory
+  env_vars:
+    - BOT_INSTANCE_ID
+  optional_env_vars:
+    - SLACK_WEBHOOK_URL
+    - GH_TOKEN
+
+shared_skills:
+  - slack-notify

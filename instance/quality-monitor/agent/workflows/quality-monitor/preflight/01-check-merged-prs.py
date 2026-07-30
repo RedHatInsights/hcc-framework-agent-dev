@@ -3,7 +3,7 @@
 
 import subprocess
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from common import (
@@ -98,7 +98,7 @@ def main():
 
     repos = load_project_repos()
     violations = {}
-    since = datetime.now() - timedelta(hours=24)
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
 
     for repo_name in repos.keys():
         upstream, host = upstream_repo(repo_name)

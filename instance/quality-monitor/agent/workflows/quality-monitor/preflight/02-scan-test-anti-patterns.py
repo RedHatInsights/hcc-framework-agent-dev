@@ -2,6 +2,7 @@
 """Scan repos for test anti-patterns - runs once daily (KEDA scheduled)."""
 
 import subprocess
+import yaml
 from datetime import datetime
 from pathlib import Path
 
@@ -15,41 +16,128 @@ from common import (
 )
 
 
-def find_test_files(repo_path, max_files=20):
-    """Find test files in repository."""
+def load_test_config():
+    """Load test file configuration."""
+    config_path = Path(__file__).parent.parent / "test-config.yaml"
+    if not config_path.exists():
+        return None
+
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
+
+def detect_framework(repo_path, config):
+    """Auto-detect test framework based on indicators."""
+    if not config or "defaults" not in config:
+        return None
+
+    framework_detection = config["defaults"].get("framework_detection", {})
+
+    for framework, detection in framework_detection.items():
+        indicators = detection.get("indicators", [])
+        for indicator in indicators:
+            # Check for exact file or glob pattern
+            if "*" in indicator:
+                if list(repo_path.glob(indicator)):
+                    return framework
+            else:
+                if (repo_path / indicator).exists():
+                    return framework
+
+    return None
+
+
+def get_test_patterns(repo_name, repo_path, config):
+    """Get test file patterns for a repo (custom or auto-detected)."""
+    if not config:
+        # Fallback to hardcoded patterns
+        return [
+            "**/*.test.js", "**/*.test.ts", "**/*.test.jsx", "**/*.test.tsx",
+            "**/*.spec.js", "**/*.spec.ts", "**/*.spec.jsx", "**/*.spec.tsx",
+            "**/test_*.py", "**/*_test.py", "**/*Test.java"
+        ], []
+
+    # Check for repo-specific config
+    repos_config = config.get("repos", {})
+    if repo_name in repos_config:
+        repo_cfg = repos_config[repo_name]
+        return repo_cfg.get("patterns", []), repo_cfg.get("exclude", [])
+
+    # Auto-detect framework
+    framework = detect_framework(repo_path, config)
+    
+    defaults = config.get("defaults", {})
+    global_excludes = defaults.get("global_excludes", [])
+
+    if framework:
+        framework_config = defaults.get("framework_detection", {}).get(framework, {})
+        patterns = framework_config.get("patterns", [])
+        return patterns, global_excludes
+
+    # Use generic fallback
+    generic_patterns = defaults.get("generic_patterns", [])
+    return generic_patterns, global_excludes
+
+
+def expand_brace_patterns(pattern):
+    """Expand {a,b,c} patterns into multiple patterns."""
+    import re
+    match = re.search(r'\{([^}]+)\}', pattern)
+    if not match:
+        return [pattern]
+    
+    options = match.group(1).split(',')
+    results = []
+    for option in options:
+        expanded = pattern[:match.start()] + option + pattern[match.end():]
+        # Recursively expand if more braces exist
+        results.extend(expand_brace_patterns(expanded))
+    return results
+
+
+def find_test_files(repo_path, repo_name, config, max_files=20):
+    """Find test files in repository using config or auto-detection."""
     test_files = []
+    
+    patterns, excludes = get_test_patterns(repo_name, repo_path, config)
+    
+    # Expand brace patterns
+    expanded_patterns = []
+    for pattern in patterns:
+        expanded_patterns.extend(expand_brace_patterns(pattern))
 
-    # Common test file patterns
-    test_patterns = [
-        "**/*.test.js",
-        "**/*.test.ts",
-        "**/*.test.jsx",
-        "**/*.test.tsx",
-        "**/*.spec.js",
-        "**/*.spec.ts",
-        "**/*.spec.jsx",
-        "**/*.spec.tsx",
-        "**/test_*.py",
-        "**/*_test.py",
-        "**/*Test.java",
-    ]
-
-    for pattern in test_patterns:
+    for pattern in expanded_patterns:
         for file_path in repo_path.glob(pattern):
-            if file_path.is_file() and len(test_files) < max_files:
-                # Get relative path and check size
-                rel_path = file_path.relative_to(repo_path)
-                file_size = file_path.stat().st_size
+            if not file_path.is_file():
+                continue
+                
+            if len(test_files) >= max_files:
+                break
 
-                # Skip very large files (>100KB)
-                if file_size > 100_000:
-                    continue
+            # Check excludes
+            rel_path = file_path.relative_to(repo_path)
+            excluded = False
+            for exclude_pattern in excludes:
+                if file_path.match(exclude_pattern):
+                    excluded = True
+                    break
+            
+            if excluded:
+                continue
 
-                test_files.append({
-                    "path": str(rel_path),
-                    "full_path": str(file_path),
-                    "size": file_size,
-                })
+            file_size = file_path.stat().st_size
+
+            # Skip very large files
+            limits = config.get("limits", {}) if config else {}
+            max_size = limits.get("max_file_size_bytes", 102400)
+            if file_size > max_size:
+                continue
+
+            test_files.append({
+                "path": str(rel_path),
+                "full_path": str(file_path),
+                "size": file_size,
+            })
 
     return test_files[:max_files]
 
@@ -82,11 +170,15 @@ def main():
         output_result("skip", f"Already processing {len(active_scans)} test scans")
         return
 
+    # Load test config
+    test_config = load_test_config()
+    max_repos = test_config.get("limits", {}).get("max_repos_per_scan", 3) if test_config else 3
+
     repos = load_project_repos()
     repos_with_tests = {}
 
-    # Limit to 3 repos per run to keep prompt manageable
-    for repo_name in list(repos.keys())[:3]:
+    # Limit repos per run
+    for repo_name in list(repos.keys())[:max_repos]:
         repo_path = Path("repos") / repo_name
 
         if not repo_path.exists():
@@ -107,20 +199,25 @@ def main():
             except subprocess.TimeoutExpired:
                 continue
 
-        # Find test files
-        test_files = find_test_files(repo_path, max_files=10)
+        # Find test files using config or auto-detection
+        test_files = find_test_files(repo_path, repo_name, test_config)
         if test_files:
-            repos_with_tests[repo_name] = test_files
+            # Detect framework for informational purposes
+            framework = detect_framework(repo_path, test_config) if test_config else "unknown"
+            repos_with_tests[repo_name] = {
+                "files": test_files,
+                "framework": framework or "generic"
+            }
 
     # Mark as scanned today
     save_state({"last_anti_pattern_scan": today})
 
     if not repos_with_tests:
-        output_result("skip", f"Scanned {min(3, len(repos))} repos, no test files found")
+        output_result("skip", f"Scanned {min(max_repos, len(repos))} repos, no test files found")
         return
 
     # Format for AI - just list the files to analyze
-    total_files = sum(len(files) for files in repos_with_tests.values())
+    total_files = sum(len(data["files"]) for data in repos_with_tests.values())
     content = f"# Test Anti-Pattern Scan\n\n"
     content += f"Found {total_files} test files across {len(repos_with_tests)} repositories.\n\n"
     content += f"**Instructions:**\n"
@@ -129,8 +226,10 @@ def main():
     content += f"3. Focus on HIGH severity patterns first\n"
     content += f"4. Use the examples in anti-patterns.yaml to guide your analysis\n\n"
 
-    for repo, test_files in repos_with_tests.items():
-        content += f"## {repo} ({len(test_files)} test files)\n\n"
+    for repo, data in repos_with_tests.items():
+        test_files = data["files"]
+        framework = data["framework"]
+        content += f"## {repo} ({len(test_files)} test files, framework: {framework})\n\n"
         for test_file in test_files:
             content += f"- `{test_file['path']}` ({test_file['size']} bytes)\n"
         content += "\n"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check for merged PRs with failed checks - runs once daily at 9 AM."""
+"""Check for merged PRs with failed checks - runs once daily (KEDA scheduled)."""
 
 import subprocess
 import json
@@ -69,13 +69,7 @@ def check_pr_violations(org_repo, pr_number, pr_data):
 
 
 def main():
-    # Only run during the 9 AM hour
-    current_hour = datetime.now().hour
-    if current_hour != 9:
-        output_result("skip", f"Not scan time (current hour: {current_hour}, target: 9 AM)")
-        return
-
-    # Only run once per day
+    # Only run once per day (KEDA controls pod scheduling)
     state = load_state()
     last_scan_date = state.get("last_merge_check_scan", "")
     today = datetime.now().strftime("%Y-%m-%d")

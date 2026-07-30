@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan repos for test anti-patterns - runs once daily at 9 AM."""
+"""Scan repos for test anti-patterns - runs once daily (KEDA scheduled)."""
 
 import subprocess
 from datetime import datetime
@@ -55,15 +55,7 @@ def find_test_files(repo_path, max_files=20):
 
 
 def main():
-    # Only run during the 9 AM hour
-    current_hour = datetime.now().hour
-    if current_hour != 9:
-        output_result(
-            "skip", f"Not scan time (current hour: {current_hour}, target: 9 AM)"
-        )
-        return
-
-    # Only run once per day
+    # Only run once per day (KEDA controls pod scheduling)
     state = load_state()
     last_scan_date = state.get("last_anti_pattern_scan", "")
     today = datetime.now().strftime("%Y-%m-%d")

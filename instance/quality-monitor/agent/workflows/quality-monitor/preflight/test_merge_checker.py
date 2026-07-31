@@ -17,13 +17,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 # Import after path setup
 from importlib import util
+
 spec = util.spec_from_file_location("checker", "01-check-merged-prs.py")
 checker = util.module_from_spec(spec)
 
 # Mock common module before loading checker
 from unittest.mock import Mock
+
 mock_common = Mock()
-sys.modules['common'] = mock_common
+sys.modules["common"] = mock_common
 
 # Now execute the module
 spec.loader.exec_module(checker)
@@ -36,7 +38,7 @@ def get_repo_remote(repo_path: Path) -> str:
             ["git", "-C", str(repo_path), "remote", "get-url", "upstream"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -46,7 +48,7 @@ def get_repo_remote(repo_path: Path) -> str:
             ["git", "-C", str(repo_path), "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -104,15 +106,21 @@ def test_repo(repo_path: str, limit: int = 10):
     try:
         result = subprocess.run(
             [
-                "gh", "pr", "list",
-                "--repo", org_repo,
-                "--state", "merged",
-                "--limit", str(limit),
-                "--json", "number,title,url,author,mergedAt"
+                "gh",
+                "pr",
+                "list",
+                "--repo",
+                org_repo,
+                "--state",
+                "merged",
+                "--limit",
+                str(limit),
+                "--json",
+                "number,title,url,author,mergedAt",
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
 
         if result.returncode != 0:
@@ -130,7 +138,8 @@ def test_repo(repo_path: str, limit: int = 10):
         # Check last 24 hours
         since = datetime.now(timezone.utc) - timedelta(hours=24)
         recent_prs = [
-            pr for pr in prs
+            pr
+            for pr in prs
             if datetime.fromisoformat(pr["mergedAt"].replace("Z", "+00:00")) > since
         ]
 
@@ -155,8 +164,16 @@ def test_repo(repo_path: str, limit: int = 10):
 
             if violation:
                 violations.append(violation)
-                severity_icon = "🔴" if any(c["conclusion"] == "FAILURE" for c in violation["failed_checks"]) else "🟡"
-                print(f"   {severity_icon} VIOLATION: {len(violation['failed_checks'])} failed checks")
+                severity_icon = (
+                    "🔴"
+                    if any(
+                        c["conclusion"] == "FAILURE" for c in violation["failed_checks"]
+                    )
+                    else "🟡"
+                )
+                print(
+                    f"   {severity_icon} VIOLATION: {len(violation['failed_checks'])} failed checks"
+                )
                 for check in violation["failed_checks"]:
                     print(f"      - {check['name']}: {check['conclusion']}")
             else:
@@ -169,9 +186,15 @@ def test_repo(repo_path: str, limit: int = 10):
         if violations:
             print(f"⚠️  Found {len(violations)} PRs merged with failed checks:\n")
             for v in violations:
-                has_failure = any(c["conclusion"] == "FAILURE" for c in v["failed_checks"])
-                has_cancelled = any(c["conclusion"] == "CANCELLED" for c in v["failed_checks"])
-                severity = "HIGH" if has_failure else "MEDIUM" if has_cancelled else "LOW"
+                has_failure = any(
+                    c["conclusion"] == "FAILURE" for c in v["failed_checks"]
+                )
+                has_cancelled = any(
+                    c["conclusion"] == "CANCELLED" for c in v["failed_checks"]
+                )
+                severity = (
+                    "HIGH" if has_failure else "MEDIUM" if has_cancelled else "LOW"
+                )
                 print(f"  [{severity}] PR #{v['number']}: {v['title']}")
                 print(f"         {v['url']}")
                 for check in v["failed_checks"]:

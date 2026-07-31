@@ -18,28 +18,29 @@ def mock_common_module():
     """Mock the common module that preflight scripts depend on."""
     mock_common = Mock()
     mock_common.load_project_repos = Mock(return_value={})
-    mock_common.upstream_repo = Mock(return_value=("RedHatInsights/test-repo", "github"))
+    mock_common.upstream_repo = Mock(
+        return_value=("RedHatInsights/test-repo", "github")
+    )
     mock_common.output_result = Mock()
     mock_common.get_capacity = Mock(return_value=(0, 10))
     mock_common.get_tasks = Mock(return_value=[])
     mock_common.load_state = Mock(return_value={})
     mock_common.save_state = Mock()
 
-    sys.modules['common'] = mock_common
+    sys.modules["common"] = mock_common
 
     yield mock_common
 
     # Cleanup
-    if 'common' in sys.modules:
-        del sys.modules['common']
+    if "common" in sys.modules:
+        del sys.modules["common"]
 
 
 # Import after mocking common
 import importlib
 
 spec = importlib.util.spec_from_file_location(
-    "check_merged_prs",
-    Path(__file__).parent.parent / "01-check-merged-prs.py"
+    "check_merged_prs", Path(__file__).parent.parent / "01-check-merged-prs.py"
 )
 check_module = importlib.util.module_from_spec(spec)
 
@@ -52,7 +53,7 @@ def sample_pr_data():
         "title": "Fix critical bug",
         "url": "https://github.com/RedHatInsights/test-repo/pull/123",
         "author": {"login": "developer"},
-        "mergedAt": datetime.now().isoformat() + "Z"
+        "mergedAt": datetime.now().isoformat() + "Z",
     }
 
 
@@ -64,18 +65,18 @@ def sample_status_checks():
             {
                 "name": "ci/test",
                 "conclusion": "SUCCESS",
-                "detailsUrl": "https://github.com/actions/runs/123"
+                "detailsUrl": "https://github.com/actions/runs/123",
             },
             {
                 "name": "ci/lint",
                 "conclusion": "FAILURE",
-                "detailsUrl": "https://github.com/actions/runs/124"
+                "detailsUrl": "https://github.com/actions/runs/124",
             },
             {
                 "name": "ci/build",
                 "conclusion": "CANCELLED",
-                "detailsUrl": "https://github.com/actions/runs/125"
-            }
+                "detailsUrl": "https://github.com/actions/runs/125",
+            },
         ]
     }
 
@@ -91,11 +92,9 @@ class TestCheckPrViolations:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(sample_status_checks)
 
-        with patch('subprocess.run', return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result):
             result = check_module.check_pr_violations(
-                "RedHatInsights/test-repo",
-                123,
-                sample_pr_data
+                "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
         assert result is not None
@@ -117,7 +116,7 @@ class TestCheckPrViolations:
                 {
                     "name": "optional-check",
                     "conclusion": "SKIPPED",
-                    "detailsUrl": "https://github.com/actions/runs/126"
+                    "detailsUrl": "https://github.com/actions/runs/126",
                 }
             ]
         }
@@ -126,11 +125,9 @@ class TestCheckPrViolations:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(status_with_skip)
 
-        with patch('subprocess.run', return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result):
             result = check_module.check_pr_violations(
-                "RedHatInsights/test-repo",
-                123,
-                sample_pr_data
+                "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
         assert result is not None
@@ -146,13 +143,13 @@ class TestCheckPrViolations:
                 {
                     "name": "ci/test",
                     "conclusion": "SUCCESS",
-                    "detailsUrl": "https://github.com/actions/runs/123"
+                    "detailsUrl": "https://github.com/actions/runs/123",
                 },
                 {
                     "name": "ci/lint",
                     "conclusion": "SUCCESS",
-                    "detailsUrl": "https://github.com/actions/runs/124"
-                }
+                    "detailsUrl": "https://github.com/actions/runs/124",
+                },
             ]
         }
 
@@ -160,11 +157,9 @@ class TestCheckPrViolations:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(all_passing)
 
-        with patch('subprocess.run', return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result):
             result = check_module.check_pr_violations(
-                "RedHatInsights/test-repo",
-                123,
-                sample_pr_data
+                "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
         assert result is None
@@ -177,11 +172,9 @@ class TestCheckPrViolations:
         mock_result.returncode = 1
         mock_result.stdout = ""
 
-        with patch('subprocess.run', return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result):
             result = check_module.check_pr_violations(
-                "RedHatInsights/test-repo",
-                123,
-                sample_pr_data
+                "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
         assert result is None
@@ -190,11 +183,9 @@ class TestCheckPrViolations:
         """Handles subprocess timeout gracefully."""
         spec.loader.exec_module(check_module)
 
-        with patch('subprocess.run', side_effect=subprocess.TimeoutExpired("gh", 10)):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("gh", 10)):
             result = check_module.check_pr_violations(
-                "RedHatInsights/test-repo",
-                123,
-                sample_pr_data
+                "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
         assert result is None
@@ -207,11 +198,9 @@ class TestCheckPrViolations:
         mock_result.returncode = 0
         mock_result.stdout = "not valid json"
 
-        with patch('subprocess.run', return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result):
             result = check_module.check_pr_violations(
-                "RedHatInsights/test-repo",
-                123,
-                sample_pr_data
+                "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
         assert result is None
@@ -224,11 +213,9 @@ class TestCheckPrViolations:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(sample_status_checks)
 
-        with patch('subprocess.run', return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result):
             result = check_module.check_pr_violations(
-                "RedHatInsights/test-repo",
-                123,
-                sample_pr_data
+                "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
         assert result["number"] == 123
@@ -245,9 +232,7 @@ class TestMainFunction:
         """Skips scan if already run today."""
         today = datetime.now().strftime("%Y-%m-%d")
 
-        mock_common_module.load_state.return_value = {
-            "last_merge_check_scan": today
-        }
+        mock_common_module.load_state.return_value = {"last_merge_check_scan": today}
 
         spec.loader.exec_module(check_module)
         check_module.main()
@@ -298,17 +283,19 @@ class TestMainFunction:
             "test-repo": {"upstream": "https://github.com/RedHatInsights/test-repo"}
         }
         mock_common_module.upstream_repo.return_value = (
-            "RedHatInsights/test-repo", "github"
+            "RedHatInsights/test-repo",
+            "github",
         )
 
         # Mock gh pr list response (recent PR with timezone-aware timestamp)
         from datetime import timezone
+
         recent_pr = {
             "number": 123,
             "title": "Fix critical bug",
             "url": "https://github.com/RedHatInsights/test-repo/pull/123",
             "author": {"login": "developer"},
-            "mergedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            "mergedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
         pr_list_response = [recent_pr]
 
@@ -318,7 +305,7 @@ class TestMainFunction:
                 {
                     "name": "ci/test",
                     "conclusion": "FAILURE",
-                    "detailsUrl": "https://github.com/actions/runs/123"
+                    "detailsUrl": "https://github.com/actions/runs/123",
                 }
             ]
         }
@@ -336,7 +323,7 @@ class TestMainFunction:
 
         spec.loader.exec_module(check_module)
 
-        with patch('subprocess.run', side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
             check_module.main()
 
         # Verify output was called with violations
@@ -356,7 +343,8 @@ class TestMainFunction:
             "gitlab-repo": {"upstream": "https://gitlab.com/test/repo"}
         }
         mock_common_module.upstream_repo.return_value = (
-            "test/repo", "gitlab"  # Non-GitHub host
+            "test/repo",
+            "gitlab",  # Non-GitHub host
         )
 
         spec.loader.exec_module(check_module)
@@ -370,18 +358,24 @@ class TestMainFunction:
     def test_filters_by_24h_window(self, mock_common_module):
         """Only processes PRs merged in last 24 hours."""
         from datetime import timezone
+
         mock_common_module.load_state.return_value = {}
         mock_common_module.get_capacity.return_value = (0, 10)
         mock_common_module.load_project_repos.return_value = {
             "test-repo": {"upstream": "https://github.com/RedHatInsights/test-repo"}
         }
         mock_common_module.upstream_repo.return_value = (
-            "RedHatInsights/test-repo", "github"
+            "RedHatInsights/test-repo",
+            "github",
         )
 
         # Create PRs: one recent, one old (both timezone-aware)
         recent_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        old_time = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat().replace("+00:00", "Z")
+        old_time = (
+            (datetime.now(timezone.utc) - timedelta(hours=48))
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
 
         pr_list_response = [
             {
@@ -389,15 +383,15 @@ class TestMainFunction:
                 "title": "Recent PR",
                 "url": "https://github.com/test/pull/123",
                 "author": {"login": "dev"},
-                "mergedAt": recent_time
+                "mergedAt": recent_time,
             },
             {
                 "number": 122,
                 "title": "Old PR",
                 "url": "https://github.com/test/pull/122",
                 "author": {"login": "dev"},
-                "mergedAt": old_time
-            }
+                "mergedAt": old_time,
+            },
         ]
 
         violations_response = {
@@ -423,7 +417,7 @@ class TestMainFunction:
 
         spec.loader.exec_module(check_module)
 
-        with patch('subprocess.run', side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
             check_module.main()
 
         # Should only check the recent PR (within 24h window)
@@ -436,13 +430,15 @@ class TestSeverityAssessment:
     def test_failure_is_high_severity(self, mock_common_module):
         """FAILURE conclusions are marked as HIGH severity."""
         from datetime import timezone
+
         mock_common_module.load_state.return_value = {}
         mock_common_module.get_capacity.return_value = (0, 10)
         mock_common_module.load_project_repos.return_value = {
             "test-repo": {"upstream": "https://github.com/RedHatInsights/test-repo"}
         }
         mock_common_module.upstream_repo.return_value = (
-            "RedHatInsights/test-repo", "github"
+            "RedHatInsights/test-repo",
+            "github",
         )
 
         recent_pr = {
@@ -450,7 +446,7 @@ class TestSeverityAssessment:
             "title": "Fix critical bug",
             "url": "https://github.com/RedHatInsights/test-repo/pull/123",
             "author": {"login": "developer"},
-            "mergedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            "mergedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
         pr_list_response = [recent_pr]
         pr_view_response = {
@@ -472,7 +468,7 @@ class TestSeverityAssessment:
 
         spec.loader.exec_module(check_module)
 
-        with patch('subprocess.run', side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]
@@ -481,13 +477,15 @@ class TestSeverityAssessment:
     def test_cancelled_is_medium_severity(self, mock_common_module):
         """CANCELLED conclusions are marked as MEDIUM severity."""
         from datetime import timezone
+
         mock_common_module.load_state.return_value = {}
         mock_common_module.get_capacity.return_value = (0, 10)
         mock_common_module.load_project_repos.return_value = {
             "test-repo": {"upstream": "https://github.com/RedHatInsights/test-repo"}
         }
         mock_common_module.upstream_repo.return_value = (
-            "RedHatInsights/test-repo", "github"
+            "RedHatInsights/test-repo",
+            "github",
         )
 
         recent_pr = {
@@ -495,7 +493,7 @@ class TestSeverityAssessment:
             "title": "Fix critical bug",
             "url": "https://github.com/RedHatInsights/test-repo/pull/123",
             "author": {"login": "developer"},
-            "mergedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            "mergedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
         pr_list_response = [recent_pr]
         pr_view_response = {
@@ -517,7 +515,7 @@ class TestSeverityAssessment:
 
         spec.loader.exec_module(check_module)
 
-        with patch('subprocess.run', side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]

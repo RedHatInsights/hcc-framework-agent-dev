@@ -52,9 +52,17 @@ def get_test_patterns(repo_name, repo_path, config):
     if not config:
         # Fallback to hardcoded patterns
         return [
-            "**/*.test.js", "**/*.test.ts", "**/*.test.jsx", "**/*.test.tsx",
-            "**/*.spec.js", "**/*.spec.ts", "**/*.spec.jsx", "**/*.spec.tsx",
-            "**/test_*.py", "**/*_test.py", "**/*Test.java"
+            "**/*.test.js",
+            "**/*.test.ts",
+            "**/*.test.jsx",
+            "**/*.test.tsx",
+            "**/*.spec.js",
+            "**/*.spec.ts",
+            "**/*.spec.jsx",
+            "**/*.spec.tsx",
+            "**/test_*.py",
+            "**/*_test.py",
+            "**/*Test.java",
         ], []
 
     # Check for repo-specific config
@@ -65,7 +73,7 @@ def get_test_patterns(repo_name, repo_path, config):
 
     # Auto-detect framework
     framework = detect_framework(repo_path, config)
-    
+
     defaults = config.get("defaults", {})
     global_excludes = defaults.get("global_excludes", [])
 
@@ -82,14 +90,15 @@ def get_test_patterns(repo_name, repo_path, config):
 def expand_brace_patterns(pattern):
     """Expand {a,b,c} patterns into multiple patterns."""
     import re
-    match = re.search(r'\{([^}]+)\}', pattern)
+
+    match = re.search(r"\{([^}]+)\}", pattern)
     if not match:
         return [pattern]
-    
-    options = match.group(1).split(',')
+
+    options = match.group(1).split(",")
     results = []
     for option in options:
-        expanded = pattern[:match.start()] + option + pattern[match.end():]
+        expanded = pattern[: match.start()] + option + pattern[match.end() :]
         # Recursively expand if more braces exist
         results.extend(expand_brace_patterns(expanded))
     return results
@@ -98,9 +107,9 @@ def expand_brace_patterns(pattern):
 def find_test_files(repo_path, repo_name, config, max_files=20):
     """Find test files in repository using config or auto-detection."""
     test_files = []
-    
+
     patterns, excludes = get_test_patterns(repo_name, repo_path, config)
-    
+
     # Expand brace patterns
     expanded_patterns = []
     for pattern in patterns:
@@ -110,7 +119,7 @@ def find_test_files(repo_path, repo_name, config, max_files=20):
         for file_path in repo_path.glob(pattern):
             if not file_path.is_file():
                 continue
-                
+
             if len(test_files) >= max_files:
                 break
 
@@ -121,7 +130,7 @@ def find_test_files(repo_path, repo_name, config, max_files=20):
                 if file_path.match(exclude_pattern):
                     excluded = True
                     break
-            
+
             if excluded:
                 continue
 
@@ -133,11 +142,13 @@ def find_test_files(repo_path, repo_name, config, max_files=20):
             if file_size > max_size:
                 continue
 
-            test_files.append({
-                "path": str(rel_path),
-                "full_path": str(file_path),
-                "size": file_size,
-            })
+            test_files.append(
+                {
+                    "path": str(rel_path),
+                    "full_path": str(file_path),
+                    "size": file_size,
+                }
+            )
 
     return test_files[:max_files]
 
@@ -172,7 +183,9 @@ def main():
 
     # Load test config
     test_config = load_test_config()
-    max_repos = test_config.get("limits", {}).get("max_repos_per_scan", 3) if test_config else 3
+    max_repos = (
+        test_config.get("limits", {}).get("max_repos_per_scan", 3) if test_config else 3
+    )
 
     repos = load_project_repos()
     repos_with_tests = {}
@@ -203,17 +216,21 @@ def main():
         test_files = find_test_files(repo_path, repo_name, test_config)
         if test_files:
             # Detect framework for informational purposes
-            framework = detect_framework(repo_path, test_config) if test_config else "unknown"
+            framework = (
+                detect_framework(repo_path, test_config) if test_config else "unknown"
+            )
             repos_with_tests[repo_name] = {
                 "files": test_files,
-                "framework": framework or "generic"
+                "framework": framework or "generic",
             }
 
     # Mark as scanned today
     save_state({"last_anti_pattern_scan": today})
 
     if not repos_with_tests:
-        output_result("skip", f"Scanned {min(max_repos, len(repos))} repos, no test files found")
+        output_result(
+            "skip", f"Scanned {min(max_repos, len(repos))} repos, no test files found"
+        )
         return
 
     # Format for AI - just list the files to analyze
@@ -229,7 +246,9 @@ def main():
     for repo, data in repos_with_tests.items():
         test_files = data["files"]
         framework = data["framework"]
-        content += f"## {repo} ({len(test_files)} test files, framework: {framework})\n\n"
+        content += (
+            f"## {repo} ({len(test_files)} test files, framework: {framework})\n\n"
+        )
         for test_file in test_files:
             content += f"- `{test_file['path']}` ({test_file['size']} bytes)\n"
         content += "\n"

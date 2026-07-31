@@ -25,13 +25,13 @@ def mock_common_module():
     mock_common.load_state = Mock(return_value={})
     mock_common.save_state = Mock()
 
-    sys.modules['common'] = mock_common
+    sys.modules["common"] = mock_common
 
     yield mock_common
 
     # Cleanup
-    if 'common' in sys.modules:
-        del sys.modules['common']
+    if "common" in sys.modules:
+        del sys.modules["common"]
 
 
 # Import after mocking common
@@ -41,8 +41,7 @@ from pathlib import Path
 
 # Dynamically import the module
 spec = importlib.util.spec_from_file_location(
-    "scan_anti_patterns",
-    Path(__file__).parent.parent / "02-scan-test-anti-patterns.py"
+    "scan_anti_patterns", Path(__file__).parent.parent / "02-scan-test-anti-patterns.py"
 )
 scan_module = importlib.util.module_from_spec(spec)
 
@@ -54,24 +53,24 @@ def sample_test_config():
         "repos": {
             "custom-repo": {
                 "patterns": ["custom/**/*.spec.ts"],
-                "exclude": ["**/*.skip.spec.ts"]
+                "exclude": ["**/*.skip.spec.ts"],
             }
         },
         "defaults": {
             "framework_detection": {
                 "playwright": {
                     "indicators": ["playwright.config.ts", "playwright.config.js"],
-                    "patterns": ["**/*.spec.ts", "e2e/**/*.test.ts"]
+                    "patterns": ["**/*.spec.ts", "e2e/**/*.test.ts"],
                 }
             },
             "generic_patterns": ["**/*.spec.ts", "**/*.test.ts"],
-            "global_excludes": ["**/node_modules/**", "**/dist/**"]
+            "global_excludes": ["**/node_modules/**", "**/dist/**"],
         },
         "limits": {
             "max_files_per_repo": 20,
             "max_file_size_bytes": 102400,
-            "max_repos_per_scan": 3
-        }
+            "max_repos_per_scan": 3,
+        },
     }
 
 
@@ -101,8 +100,10 @@ class TestExpandBracePatterns:
         spec.loader.exec_module(scan_module)
         result = scan_module.expand_brace_patterns("**/*.{spec,test}.{ts,js}")
         assert set(result) == {
-            "**/*.spec.ts", "**/*.spec.js",
-            "**/*.test.ts", "**/*.test.js"
+            "**/*.spec.ts",
+            "**/*.spec.js",
+            "**/*.test.ts",
+            "**/*.test.js",
         }
 
 
@@ -176,9 +177,7 @@ class TestGetTestPatterns:
     def test_no_config_fallback(self, tmp_path):
         """Uses hardcoded patterns when no config provided."""
         spec.loader.exec_module(scan_module)
-        patterns, excludes = scan_module.get_test_patterns(
-            "any-repo", tmp_path, None
-        )
+        patterns, excludes = scan_module.get_test_patterns("any-repo", tmp_path, None)
         # Should return hardcoded patterns
         assert "**/*.test.ts" in patterns
         assert "**/*.spec.ts" in patterns
@@ -268,11 +267,9 @@ class TestFindTestFiles:
         config = {
             "defaults": {
                 "generic_patterns": ["**/*.{spec,test}.ts"],
-                "global_excludes": []
+                "global_excludes": [],
             },
-            "limits": {
-                "max_file_size_bytes": 102400
-            }
+            "limits": {"max_file_size_bytes": 102400},
         }
 
         test_dir = tmp_path / "tests"
@@ -295,12 +292,12 @@ class TestLoadTestConfig:
         """Loads valid YAML configuration."""
         config_path = tmp_path / "test-config.yaml"
 
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             yaml.dump(sample_test_config, f)
 
         spec.loader.exec_module(scan_module)
 
-        with patch.object(Path, '__truediv__', return_value=config_path):
+        with patch.object(Path, "__truediv__", return_value=config_path):
             result = scan_module.load_test_config()
 
         # Note: This test may need adjustment based on actual path resolution
@@ -311,7 +308,7 @@ class TestLoadTestConfig:
         spec.loader.exec_module(scan_module)
 
         # Mock Path to return non-existent file
-        with patch('pathlib.Path.exists', return_value=False):
+        with patch("pathlib.Path.exists", return_value=False):
             result = scan_module.load_test_config()
             # Function should handle missing file gracefully
 
@@ -322,11 +319,10 @@ class TestMainFunction:
     def test_skips_when_already_scanned_today(self, mock_common_module):
         """Skips scan if already run today."""
         from datetime import datetime
+
         today = datetime.now().strftime("%Y-%m-%d")
 
-        mock_common_module.load_state.return_value = {
-            "last_anti_pattern_scan": today
-        }
+        mock_common_module.load_state.return_value = {"last_anti_pattern_scan": today}
 
         spec.loader.exec_module(scan_module)
         scan_module.main()

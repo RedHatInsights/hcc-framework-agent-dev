@@ -133,8 +133,7 @@ def main():
             recent_prs = [
                 pr
                 for pr in prs
-                if datetime.fromisoformat(pr["mergedAt"].replace("Z", "+00:00"))
-                > since
+                if datetime.fromisoformat(pr["mergedAt"].replace("Z", "+00:00")) > since
             ]
 
             # Check each PR
@@ -166,19 +165,11 @@ def main():
         content += f"## {repo} ({len(prs)} violations)\n\n"
         for pr in prs:
             # Determine severity
-            has_failure = any(
-                c["conclusion"] == "FAILURE" for c in pr["failed_checks"]
-            )
+            has_failure = any(c["conclusion"] == "FAILURE" for c in pr["failed_checks"])
             has_cancelled = any(
                 c["conclusion"] == "CANCELLED" for c in pr["failed_checks"]
             )
-            severity = (
-                "HIGH"
-                if has_failure
-                else "MEDIUM"
-                if has_cancelled
-                else "LOW"
-            )
+            severity = "HIGH" if has_failure else "MEDIUM" if has_cancelled else "LOW"
 
             content += f"### PR #{pr['number']}: {pr['title']} [**{severity}**]\n"
             content += f"- **URL:** {pr['url']}\n"

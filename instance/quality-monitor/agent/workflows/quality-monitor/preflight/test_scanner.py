@@ -13,13 +13,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 # Import after path setup
 from importlib import util
+
 spec = util.spec_from_file_location("scanner", "02-scan-test-anti-patterns.py")
 scanner = util.module_from_spec(spec)
 
 # Mock common module before loading scanner
 from unittest.mock import Mock
+
 mock_common = Mock()
-sys.modules['common'] = mock_common
+sys.modules["common"] = mock_common
 
 # Now execute the module
 spec.loader.exec_module(scanner)
@@ -59,11 +61,13 @@ def test_repo(repo_path: str):
             print(f"  - {exclude}")
 
     # Find test files
-    test_files = scanner.find_test_files(repo_path, repo_path.name, config, max_files=20)
+    test_files = scanner.find_test_files(
+        repo_path, repo_path.name, config, max_files=20
+    )
 
     print(f"\n📄 Found {len(test_files)} test files:")
     for i, test_file in enumerate(test_files, 1):
-        size_kb = test_file['size'] / 1024
+        size_kb = test_file["size"] / 1024
         print(f"  {i:2d}. {test_file['path']} ({size_kb:.1f} KB)")
 
     if not test_files:

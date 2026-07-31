@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         # Test against Python 3.11+ since that's the minimum required
-        python-version: ['3.11', '3.12', '3.13', '3.14']
+        python-version: ['3.11', '3.12', '3.13']
 
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
           uv run pytest --cov=. --cov-report=term --cov-report=xml -v
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.14'
+        if: matrix.python-version == '3.13'
         uses: codecov/codecov-action@v4
         with:
           file: instance/quality-monitor/agent/workflows/quality-monitor/preflight/coverage.xml

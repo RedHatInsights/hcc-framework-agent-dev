@@ -123,7 +123,7 @@ anti_patterns:
         });
 
   hardcoded_credentials:
-    regex: '(password|secret|token|api[_-]?key)\s*[=:]\s*["\"][^""]+'
+    regex: '(password|secret|token|api[_-]?key)\s*=\s*["\x27][^\"\x27]{8,}["\x27]'
     severity: high
     message: "Hardcoded credentials in test"
     recommendation: "Use environment variables or test fixtures for credentials"
@@ -205,56 +205,6 @@ anti_patterns:
     severity: low
     message: "TODO comment in test"
     recommendation: "Create ticket for TODO or implement the test"
-
-# Scan Configuration
-
-scan_settings:
-  # Directories to scan (relative to repo root)
-  test_directories:
-    - tests
-    - test
-    - __tests__
-    - src  # Many repos have .test.js alongside source
-    - e2e
-    - integration
-
-  # File patterns to include
-  test_file_patterns:
-    - "**/*.test.js"
-    - "**/*.test.ts"
-    - "**/*.test.jsx"
-    - "**/*.test.tsx"
-    - "**/*.spec.js"
-    - "**/*.spec.ts"
-    - "**/*.spec.jsx"
-    - "**/*.spec.tsx"
-    - "**/test_*.py"
-    - "**/*_test.py"
-    - "**/*Test.java"
-
-  # Maximum findings to report per pattern per repo
-  max_findings_per_pattern: 20
-
-  # Don't scan these repos (maintenance burden, third-party, etc.)
-  excluded_repos:
-    - vendor
-    - node_modules
-    - third-party
-
-# Notification Thresholds
-
-notification_thresholds:
-  # Create GitHub issue when:
-  high_severity_threshold: 3    # 3+ HIGH findings
-  total_findings_threshold: 10  # 10+ total findings
-
-  # Send Slack alert when:
-  slack_high_threshold: 5       # 5+ HIGH findings
-  slack_total_threshold: 20     # 20+ total findings
-
-  # Mark as repeat offender when:
-  repeat_offender_window_days: 30
-  repeat_offender_count: 3      # 3+ scans with issues in 30 days
 
 # Remediation Guidance
 

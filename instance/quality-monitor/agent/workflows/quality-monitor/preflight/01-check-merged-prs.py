@@ -113,7 +113,7 @@ def check_pr_violations(
                 "url": check.get("detailsUrl", ""),
             }
             for check in rollup
-            if check.get("conclusion") in ["FAILURE", "SKIPPED", "CANCELLED"]
+            if check.get("conclusion") == "FAILURE"
         ]
 
         if failed_checks:
@@ -249,24 +249,18 @@ def main():
         f"Found {total_violations} violations across {len(violations)} repositories"
     )
 
-    # Group violations by severity for better prioritization
-    by_severity = {"HIGH": [], "MEDIUM": [], "LOW": []}
+    # All violations are HIGH severity (FAILURE only)
+    by_severity = {"HIGH": []}
     for repo, prs in violations.items():
         for pr in prs:
-            # Determine severity
-            has_failure = any(c["conclusion"] == "FAILURE" for c in pr["failed_checks"])
-            has_cancelled = any(
-                c["conclusion"] == "CANCELLED" for c in pr["failed_checks"]
-            )
-            severity = "HIGH" if has_failure else "MEDIUM" if has_cancelled else "LOW"
-            by_severity[severity].append({**pr, "repo": repo})
+            by_severity["HIGH"].append({**pr, "repo": repo})
 
     # Format for AI - compact YAML-style format
     total = sum(len(v) for v in by_severity.values())
     content = f"# Merge Violations ({total} total)\n\n"
 
-    for severity in ["HIGH", "MEDIUM", "LOW"]:
-        items = by_severity[severity]
+    for severity in ["HIGH"]:  # Only HIGH severity now
+        items = by_severity.get(severity, [])
         if not items:
             continue
 

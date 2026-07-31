@@ -100,15 +100,15 @@ class TestCheckPrViolations:
         assert result is not None
         assert result["number"] == 123
         assert result["title"] == "Fix critical bug"
-        assert len(result["failed_checks"]) == 2  # FAILURE and CANCELLED
+        assert len(result["failed_checks"]) == 1  # FAILURE only
 
         # Verify failed checks
         failed_names = {c["name"] for c in result["failed_checks"]}
-        assert "ci/lint" in failed_names
-        assert "ci/build" in failed_names
+        assert "ci/lint" in failed_names  # FAILURE
+        # ci/build (CANCELLED) is no longer flagged
 
-    def test_detects_skipped_checks(self, sample_pr_data):
-        """Detects PRs with skipped status checks."""
+    def test_ignores_skipped_checks(self, sample_pr_data):
+        """Ignores PRs with only skipped status checks."""
         spec.loader.exec_module(check_module)
 
         status_with_skip = {
@@ -130,9 +130,8 @@ class TestCheckPrViolations:
                 "RedHatInsights/test-repo", 123, sample_pr_data
             )
 
-        assert result is not None
-        assert len(result["failed_checks"]) == 1
-        assert result["failed_checks"][0]["conclusion"] == "SKIPPED"
+        # SKIPPED checks are now tolerated
+        assert result is None
 
     def test_returns_none_for_all_passing(self, sample_pr_data):
         """Returns None when all checks pass."""
@@ -475,8 +474,8 @@ class TestSeverityAssessment:
         # Check for lowercase "high:" in new compact format
         assert "high:" in call_args[1]
 
-    def test_cancelled_is_medium_severity(self, mock_common_module):
-        """CANCELLED conclusions are marked as MEDIUM severity."""
+    def test_cancelled_is_ignored(self, mock_common_module):
+        """CANCELLED conclusions are now tolerated and ignored."""
         from datetime import timezone
 
         mock_common_module.load_state.return_value = {}
@@ -520,8 +519,8 @@ class TestSeverityAssessment:
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]
-        # Check for lowercase "medium:" in new compact format
-        assert "medium:" in call_args[1]
+        # CANCELLED checks are now tolerated, so should skip
+        assert "No merged PRs with failed checks" in call_args[1]
 
 
 if __name__ == "__main__":

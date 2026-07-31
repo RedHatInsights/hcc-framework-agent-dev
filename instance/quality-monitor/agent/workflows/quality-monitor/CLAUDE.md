@@ -15,7 +15,7 @@ ONE finding per cycle (highest priority first).
 ### Priority Order
 
 1. **P0**: Handle feedback on existing quality tasks (GitHub issue comments, Slack replies)
-2. **P1**: Merge violations (FAILURE > CANCELLED > SKIPPED)
+2. **P1**: Merge violations (FAILURE only)
 3. **P2**: High-severity test anti-patterns
 4. **P3**: Medium/low-severity test anti-patterns
 
@@ -54,9 +54,8 @@ When preflight `01-check-merged-prs.py` returns violations:
    - Query task memory to see if ticket already created
    - If exists, skip (already tracked)
 3. **Select highest priority violation**:
-   - FAILURE conclusions first (actual test/build failures)
-   - CANCELLED second (interrupted builds)
-   - SKIPPED third (potentially intentional)
+   - Only FAILURE conclusions are flagged (actual test/build failures)
+   - CANCELLED and SKIPPED are tolerated
 4. **Analyze impact**:
    - Which checks failed and why
    - Assess risk level (critical path vs optional checks)

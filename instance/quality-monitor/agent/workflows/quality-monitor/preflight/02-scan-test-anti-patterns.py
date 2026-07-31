@@ -181,7 +181,12 @@ def find_test_files_from_list(
         return test_files
 
     # Get patterns - use generic since we don't have local repo to detect framework
-    if config and "repos" in config and config.get("repos") and repo_name in config["repos"]:
+    if (
+        config
+        and "repos" in config
+        and config.get("repos")
+        and repo_name in config["repos"]
+    ):
         patterns = config["repos"][repo_name].get("patterns", [])
         excludes = config["repos"][repo_name].get("exclude", [])
     elif config and "defaults" in config:
@@ -246,13 +251,19 @@ def find_test_files_from_list(
             if pattern_simple.endswith("*.spec.ts") and file_path.endswith(".spec.ts"):
                 test_files.append({"path": file_path})
                 break
-            elif pattern_simple.endswith("*.test.ts") and file_path.endswith(".test.ts"):
+            elif pattern_simple.endswith("*.test.ts") and file_path.endswith(
+                ".test.ts"
+            ):
                 test_files.append({"path": file_path})
                 break
-            elif pattern_simple.endswith("*.spec.js") and file_path.endswith(".spec.js"):
+            elif pattern_simple.endswith("*.spec.js") and file_path.endswith(
+                ".spec.js"
+            ):
                 test_files.append({"path": file_path})
                 break
-            elif pattern_simple.endswith("*.test.js") and file_path.endswith(".test.js"):
+            elif pattern_simple.endswith("*.test.js") and file_path.endswith(
+                ".test.js"
+            ):
                 test_files.append({"path": file_path})
                 break
 
@@ -260,9 +271,7 @@ def find_test_files_from_list(
     return test_files
 
 
-def list_repo_files_via_api(
-    org_repo: str, branch: str = "main"
-) -> Optional[List[str]]:
+def list_repo_files_via_api(org_repo: str, branch: str = "main") -> Optional[List[str]]:
     """List repository files via GitHub API without cloning.
 
     Args:
@@ -279,7 +288,7 @@ def list_repo_files_via_api(
                 "api",
                 f"repos/{org_repo}/git/trees/{branch}?recursive=1",
                 "--jq",
-                ".tree[] | select(.type == \"blob\") | .path",
+                '.tree[] | select(.type == "blob") | .path',
             ],
             capture_output=True,
             text=True,
@@ -392,9 +401,9 @@ def main():
             # Detect framework from file list
             framework = "generic"
             if test_config and "defaults" in test_config:
-                for fw, detection in test_config["defaults"].get(
-                    "framework_detection", {}
-                ).items():
+                for fw, detection in (
+                    test_config["defaults"].get("framework_detection", {}).items()
+                ):
                     for indicator in detection.get("indicators", []):
                         if any(indicator in f for f in file_list):
                             framework = fw

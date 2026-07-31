@@ -67,9 +67,7 @@ class TestGoodRepoIntegration:
 
         # Generate file list from fixture directory (simulates API response)
         file_list = [
-            str(p.relative_to(good_repo))
-            for p in good_repo.rglob("*")
-            if p.is_file()
+            str(p.relative_to(good_repo)) for p in good_repo.rglob("*") if p.is_file()
         ]
 
         test_files = scan_module.find_test_files_from_list(

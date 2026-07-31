@@ -11,7 +11,6 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-
 # Import functions under test (will be imported after mocking common module)
 @pytest.fixture(autouse=True)
 def mock_common_module():

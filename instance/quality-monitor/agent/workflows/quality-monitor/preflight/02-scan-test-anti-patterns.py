@@ -58,8 +58,8 @@ def get_test_patterns(repo_name, repo_path, config):
         ], []
 
     # Check for repo-specific config
-    repos_config = config.get("repos", {})
-    if repo_name in repos_config:
+    repos_config = config.get("repos") if config else None
+    if repos_config and repo_name in repos_config:
         repo_cfg = repos_config[repo_name]
         return repo_cfg.get("patterns", []), repo_cfg.get("exclude", [])
 

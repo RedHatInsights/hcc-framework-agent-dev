@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Manual test runner for anti-pattern scanner."""
+"""Manual test runner for anti-pattern scanner.
+
+MANUAL TESTING ONLY - not used by the bot workflow.
+Run locally to validate scanner behavior against real repositories.
+"""
 
 import sys
 from pathlib import Path

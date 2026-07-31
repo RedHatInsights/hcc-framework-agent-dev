@@ -5,11 +5,8 @@ import subprocess
 import yaml
 import logging
 import re
-import shutil
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from itertools import islice
 from typing import Optional, Dict, Any, List, Tuple
 
 from common import (
@@ -28,11 +25,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Timeout and limit constants
-TIMEOUT_GIT_CLONE = 120  # seconds - shallow clone timeout
 MAX_TEST_FILES_PER_REPO = 20  # Max test files to analyze per repo
 MAX_CONCURRENT_SCANS = 5  # Max test scan tasks to process at once
 DEFAULT_MAX_REPOS_PER_SCAN = 3  # Default repos to scan per run
-DEFAULT_MAX_FILE_SIZE = 102400  # 100KB default max file size
 
 
 def load_test_config() -> Optional[Dict[str, Any]]:
@@ -162,115 +157,152 @@ def expand_brace_patterns(pattern: str) -> List[str]:
     return results
 
 
-def find_test_files(
-    repo_path: Path,
+def find_test_files_from_list(
+    file_list: List[str],
     repo_name: str,
     config: Optional[Dict],
     max_files: int = MAX_TEST_FILES_PER_REPO,
 ) -> List[Dict[str, Any]]:
-    """Find test files in repository using config or auto-detection.
+    """Find test files from file list using config patterns.
 
     Args:
-        repo_path: Path to repository
+        file_list: List of file paths from repository
         repo_name: Repository name
         config: Test configuration dict
         max_files: Maximum files to return
 
     Returns:
-        List of dicts with path, full_path, size
+        List of dicts with path
     """
     test_files = []
 
-    patterns, excludes = get_test_patterns(repo_name, repo_path, config)
+    # Safety check
+    if not file_list:
+        return test_files
+
+    # Get patterns - use generic since we don't have local repo to detect framework
+    if config and "repos" in config and config.get("repos") and repo_name in config["repos"]:
+        patterns = config["repos"][repo_name].get("patterns", [])
+        excludes = config["repos"][repo_name].get("exclude", [])
+    elif config and "defaults" in config:
+        # Try framework detection from indicators
+        framework = None
+        for fw, detection in config["defaults"].get("framework_detection", {}).items():
+            for indicator in detection.get("indicators", []):
+                if any(indicator in f for f in file_list if f):
+                    framework = fw
+                    break
+            if framework:
+                break
+
+        if framework:
+            patterns = (
+                config["defaults"]
+                .get("framework_detection", {})
+                .get(framework, {})
+                .get("patterns", [])
+            )
+        else:
+            patterns = config["defaults"].get("generic_patterns", [])
+        excludes = config["defaults"].get("global_excludes", [])
+    else:
+        # Fallback patterns
+        patterns = [
+            "**/*.spec.ts",
+            "**/*.test.ts",
+            "**/*.spec.js",
+            "**/*.test.js",
+        ]
+        excludes = ["**/node_modules/**", "**/dist/**"]
 
     # Expand brace patterns
     expanded_patterns = []
     for pattern in patterns:
         expanded_patterns.extend(expand_brace_patterns(pattern))
 
-    logger.debug(f"{repo_name}: Searching with {len(expanded_patterns)} patterns")
+    logger.debug(f"{repo_name}: Matching with {len(expanded_patterns)} patterns")
 
-    # Get file size limit
-    limits = config.get("limits", {}) if config else {}
-    max_size = limits.get("max_file_size_bytes", DEFAULT_MAX_FILE_SIZE)
-
-    for pattern in expanded_patterns:
-        # Calculate remaining slots
-        remaining = max_files - len(test_files)
-        if remaining <= 0:
+    # Match files against patterns
+    for file_path in file_list:
+        if len(test_files) >= max_files:
             break
 
-        # Use islice to limit glob iteration
-        for file_path in islice(repo_path.glob(pattern), remaining):
-            if not file_path.is_file():
-                continue
+        # Check excludes first
+        excluded = False
+        for exclude_pattern in excludes:
+            # Convert glob to simple string matching
+            exclude_simple = exclude_pattern.replace("**/", "").replace("/**", "")
+            if exclude_simple in file_path:
+                excluded = True
+                break
 
-            # Check excludes
-            excluded = False
-            for exclude_pattern in excludes:
-                if file_path.match(exclude_pattern):
-                    excluded = True
-                    break
+        if excluded:
+            continue
 
-            if excluded:
-                continue
-
-            file_size = file_path.stat().st_size
-
-            # Skip very large files
-            if file_size > max_size:
-                logger.debug(
-                    f"{repo_name}: Skipping large file {file_path} ({file_size} bytes)"
-                )
-                continue
-
-            rel_path = file_path.relative_to(repo_path)
-            test_files.append(
-                {
-                    "path": str(rel_path),
-                    "full_path": str(file_path),
-                    "size": file_size,
-                }
-            )
+        # Check if file matches any pattern
+        for pattern in expanded_patterns:
+            # Simple glob matching for common patterns
+            pattern_simple = pattern.replace("**/", "")
+            if pattern_simple.endswith("*.spec.ts") and file_path.endswith(".spec.ts"):
+                test_files.append({"path": file_path})
+                break
+            elif pattern_simple.endswith("*.test.ts") and file_path.endswith(".test.ts"):
+                test_files.append({"path": file_path})
+                break
+            elif pattern_simple.endswith("*.spec.js") and file_path.endswith(".spec.js"):
+                test_files.append({"path": file_path})
+                break
+            elif pattern_simple.endswith("*.test.js") and file_path.endswith(".test.js"):
+                test_files.append({"path": file_path})
+                break
 
     logger.info(f"{repo_name}: Found {len(test_files)} test files")
     return test_files
 
 
-def clone_repository(upstream_url: str, dest_path: Path) -> bool:
-    """Clone repository with timeout and error handling.
+def list_repo_files_via_api(
+    org_repo: str, branch: str = "main"
+) -> Optional[List[str]]:
+    """List repository files via GitHub API without cloning.
 
     Args:
-        upstream_url: Repository URL to clone
-        dest_path: Destination path for clone
+        org_repo: Repository in 'owner/repo' format
+        branch: Branch name (default: main)
 
     Returns:
-        True if successful, False otherwise
+        List of file paths or None if error
     """
     try:
         result = subprocess.run(
             [
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                upstream_url,
-                str(dest_path),
+                "gh",
+                "api",
+                f"repos/{org_repo}/git/trees/{branch}?recursive=1",
+                "--jq",
+                ".tree[] | select(.type == \"blob\") | .path",
             ],
             capture_output=True,
             text=True,
-            timeout=TIMEOUT_GIT_CLONE,
+            timeout=10,
         )
+
         if result.returncode != 0:
+            # Try master if main fails
+            if branch == "main":
+                logger.debug(f"{org_repo}: main branch failed, trying master")
+                return list_repo_files_via_api(org_repo, "master")
             logger.warning(
-                f"git clone failed for {upstream_url}: {result.stderr.strip()}"
+                f"gh api failed for {org_repo} (branch: {branch}): {result.stderr.strip()}"
             )
-            return False
-        logger.info(f"Cloned {upstream_url} to {dest_path}")
-        return True
+            return None
+
+        files = [line.strip() for line in result.stdout.strip().split("\n") if line]
+        logger.info(f"{org_repo}: Listed {len(files)} files via API")
+        return files
+
     except subprocess.TimeoutExpired:
-        logger.warning(f"Timeout cloning {upstream_url} after {TIMEOUT_GIT_CLONE}s")
-        return False
+        logger.warning(f"Timeout listing files for {org_repo} after 10s")
+        return None
 
 
 def main():
@@ -328,47 +360,52 @@ def main():
             output_result("skip", "No repositories configured in scan_only_repos")
             return
 
-    # Use temp directory for clones (automatic cleanup)
-    temp_dir = None
-    try:
-        temp_dir = Path(tempfile.mkdtemp(prefix="quality-scan-"))
-        logger.info(f"Using temporary directory: {temp_dir}")
+    # Limit repos per run
+    repo_list = list(repos.keys())[:max_repos]
+    logger.info(f"Scanning {len(repo_list)} repositories for test files via GitHub API")
 
-        # Limit repos per run
-        repo_list = list(repos.keys())[:max_repos]
-        logger.info(f"Scanning {len(repo_list)} repositories for test files")
+    for repo_name in repo_list:
+        # Extract org/repo from upstream URL
+        upstream_url = repos[repo_name].get("upstream")
+        if not upstream_url:
+            logger.warning(f"{repo_name}: No upstream URL configured")
+            continue
 
-        for repo_name in repo_list:
-            repo_path = temp_dir / repo_name
+        # Parse org/repo from URL (e.g., https://github.com/RedHatInsights/insights-chrome)
+        if "github.com" not in upstream_url:
+            logger.warning(f"{repo_name}: Not a GitHub repository, skipping")
+            continue
 
-            # Clone repository
-            upstream_url = repos[repo_name].get("upstream")
-            if not upstream_url:
-                logger.warning(f"{repo_name}: No upstream URL configured")
-                continue
+        org_repo = upstream_url.split("github.com/")[-1].replace(".git", "")
 
-            if not clone_repository(upstream_url, repo_path):
-                continue
+        # List files via GitHub API (no cloning needed)
+        file_list = list_repo_files_via_api(org_repo)
+        if not file_list:
+            continue
 
-            # Find test files using config or auto-detection
-            test_files = find_test_files(repo_path, repo_name, test_config)
-            if test_files:
-                # Detect framework for informational purposes
-                framework = (
-                    detect_framework(repo_path, test_config)
-                    if test_config
-                    else "unknown"
-                )
-                repos_with_tests[repo_name] = {
-                    "files": test_files,
-                    "framework": framework or "generic",
-                }
+        # Find test files from file list
+        test_files = find_test_files_from_list(
+            file_list, repo_name, test_config, MAX_TEST_FILES_PER_REPO
+        )
 
-    finally:
-        # Clean up temporary directory
-        if temp_dir and temp_dir.exists():
-            logger.info(f"Cleaning up temporary directory: {temp_dir}")
-            shutil.rmtree(temp_dir, ignore_errors=True)
+        if test_files:
+            # Detect framework from file list
+            framework = "generic"
+            if test_config and "defaults" in test_config:
+                for fw, detection in test_config["defaults"].get(
+                    "framework_detection", {}
+                ).items():
+                    for indicator in detection.get("indicators", []):
+                        if any(indicator in f for f in file_list):
+                            framework = fw
+                            break
+                    if framework != "generic":
+                        break
+
+            repos_with_tests[repo_name] = {
+                "files": test_files,
+                "framework": framework,
+            }
 
     # Mark as scanned today
     save_state({"last_anti_pattern_scan": today})

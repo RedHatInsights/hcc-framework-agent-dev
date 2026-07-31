@@ -64,13 +64,20 @@ class TestGoodRepoIntegration:
     def test_finds_test_files(self, good_repo):
         """Should find .spec.ts test files."""
         config = scan_module.load_test_config()
-        test_files = scan_module.find_test_files(
-            good_repo, "good-repo", config, max_files=20
+
+        # Generate file list from fixture directory (simulates API response)
+        file_list = [
+            str(p.relative_to(good_repo))
+            for p in good_repo.rglob("*")
+            if p.is_file()
+        ]
+
+        test_files = scan_module.find_test_files_from_list(
+            file_list, "good-repo", config, max_files=20
         )
 
         assert len(test_files) == 1
         assert test_files[0]["path"] == "login.spec.ts"
-        assert test_files[0]["size"] > 0
 
     def test_good_repo_has_no_hard_coded_sleeps(self, good_repo):
         """Good repo should not have waitForTimeout or setTimeout in tests."""
@@ -106,13 +113,18 @@ class TestBadRepoIntegration:
     def test_finds_test_files(self, bad_repo):
         """Should find .spec.ts test files."""
         config = scan_module.load_test_config()
-        test_files = scan_module.find_test_files(
-            bad_repo, "bad-repo", config, max_files=20
+
+        # Generate file list from fixture directory (simulates API response)
+        file_list = [
+            str(p.relative_to(bad_repo)) for p in bad_repo.rglob("*") if p.is_file()
+        ]
+
+        test_files = scan_module.find_test_files_from_list(
+            file_list, "bad-repo", config, max_files=20
         )
 
         assert len(test_files) == 1
         assert test_files[0]["path"] == "checkout.spec.ts"
-        assert test_files[0]["size"] > 0
 
     def test_bad_repo_has_hard_coded_sleeps(self, bad_repo, anti_patterns):
         """Bad repo should contain hard-coded sleep patterns."""
@@ -226,9 +238,12 @@ class TestScannerEndToEnd:
         framework = scan_module.detect_framework(good_repo, config)
         assert framework == "playwright"
 
-        # Find test files
-        test_files = scan_module.find_test_files(
-            good_repo, "good-repo", config, max_files=20
+        # Find test files (simulating API response)
+        file_list = [
+            str(p.relative_to(good_repo)) for p in good_repo.rglob("*") if p.is_file()
+        ]
+        test_files = scan_module.find_test_files_from_list(
+            file_list, "good-repo", config, max_files=20
         )
         assert len(test_files) > 0
 
@@ -249,9 +264,12 @@ class TestScannerEndToEnd:
         framework = scan_module.detect_framework(bad_repo, config)
         assert framework == "playwright"
 
-        # Find test files
-        test_files = scan_module.find_test_files(
-            bad_repo, "bad-repo", config, max_files=20
+        # Find test files (simulating API response)
+        file_list = [
+            str(p.relative_to(bad_repo)) for p in bad_repo.rglob("*") if p.is_file()
+        ]
+        test_files = scan_module.find_test_files_from_list(
+            file_list, "bad-repo", config, max_files=20
         )
         assert len(test_files) > 0
 

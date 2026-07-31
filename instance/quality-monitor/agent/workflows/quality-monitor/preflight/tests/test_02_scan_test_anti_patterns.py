@@ -183,105 +183,147 @@ class TestGetTestPatterns:
         assert excludes == []
 
 
-class TestFindTestFiles:
-    """Tests for find_test_files function."""
+class TestListRepoFilesViaAPI:
+    """Tests for list_repo_files_via_api function."""
 
-    def test_finds_matching_files(self, tmp_path, sample_test_config):
-        """Finds test files matching patterns."""
-        # Create test files
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-        (test_dir / "example.spec.ts").write_text("test content")
-        (test_dir / "another.spec.ts").write_text("more tests")
+    def test_lists_files_successfully(self):
+        """Successfully lists files via GitHub API."""
+        spec.loader.exec_module(scan_module)
+
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "src/index.ts\ntests/example.spec.ts\nREADME.md\n"
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = scan_module.list_repo_files_via_api("owner/repo", "main")
+
+        assert result is not None
+        assert len(result) == 3
+        assert "tests/example.spec.ts" in result
+
+    def test_tries_master_when_main_fails(self):
+        """Falls back to master branch when main fails."""
+        spec.loader.exec_module(scan_module)
+
+        call_count = 0
+
+        def mock_run(cmd, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            result = Mock()
+            if call_count == 1:  # First call (main) fails
+                result.returncode = 1
+                result.stderr = "Not found"
+            else:  # Second call (master) succeeds
+                result.returncode = 0
+                result.stdout = "test.spec.ts\n"
+            return result
+
+        with patch("subprocess.run", side_effect=mock_run):
+            result = scan_module.list_repo_files_via_api("owner/repo", "main")
+
+        assert result is not None
+        assert call_count == 2
+
+    def test_returns_none_on_error(self):
+        """Returns None when API call fails."""
+        spec.loader.exec_module(scan_module)
+
+        mock_result = Mock()
+        mock_result.returncode = 1
+        mock_result.stderr = "Not found"
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = scan_module.list_repo_files_via_api("owner/repo", "master")
+
+        assert result is None
+
+
+class TestFindTestFilesFromList:
+    """Tests for find_test_files_from_list function."""
+
+    def test_finds_matching_files(self, sample_test_config):
+        """Finds files matching test patterns."""
+        file_list = [
+            "tests/example.spec.ts",
+            "tests/another.test.ts",
+            "src/component.ts",
+            "README.md",
+        ]
 
         spec.loader.exec_module(scan_module)
-        result = scan_module.find_test_files(
-            tmp_path, "test-repo", sample_test_config, max_files=20
+        result = scan_module.find_test_files_from_list(
+            file_list, "test-repo", sample_test_config, max_files=20
         )
 
         assert len(result) == 2
-        assert all("spec.ts" in f["path"] for f in result)
-        assert all(f["size"] > 0 for f in result)
+        paths = [r["path"] for r in result]
+        assert "tests/example.spec.ts" in paths
+        assert "tests/another.test.ts" in paths
 
-    def test_excludes_patterns(self, tmp_path, sample_test_config):
-        """Excludes files matching exclude patterns."""
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-        (test_dir / "good.spec.ts").write_text("test")
-
-        node_modules = tmp_path / "node_modules"
-        node_modules.mkdir()
-        (node_modules / "bad.spec.ts").write_text("test")
+    def test_excludes_node_modules(self, sample_test_config):
+        """Excludes files in node_modules."""
+        file_list = [
+            "tests/good.spec.ts",
+            "node_modules/package/bad.spec.ts",
+            "dist/compiled.spec.ts",
+        ]
 
         spec.loader.exec_module(scan_module)
-        result = scan_module.find_test_files(
-            tmp_path, "test-repo", sample_test_config, max_files=20
+        result = scan_module.find_test_files_from_list(
+            file_list, "test-repo", sample_test_config, max_files=20
         )
 
-        # Should only find the file not in node_modules
         assert len(result) == 1
-        assert "good.spec.ts" in result[0]["path"]
-        assert "node_modules" not in result[0]["path"]
+        assert result[0]["path"] == "tests/good.spec.ts"
 
-    def test_respects_max_files_limit(self, tmp_path, sample_test_config):
+    def test_respects_max_files_limit(self, sample_test_config):
         """Respects max_files parameter."""
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-
-        # Create 10 test files
-        for i in range(10):
-            (test_dir / f"test{i}.spec.ts").write_text("test")
+        file_list = [f"tests/test{i}.spec.ts" for i in range(10)]
 
         spec.loader.exec_module(scan_module)
-        result = scan_module.find_test_files(
-            tmp_path, "test-repo", sample_test_config, max_files=5
+        result = scan_module.find_test_files_from_list(
+            file_list, "test-repo", sample_test_config, max_files=5
         )
 
-        assert len(result) <= 5
+        assert len(result) == 5
 
-    def test_skips_large_files(self, tmp_path, sample_test_config):
-        """Skips files exceeding size limit."""
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-
-        # Create small file
-        small_file = test_dir / "small.spec.ts"
-        small_file.write_text("test")
-
-        # Create large file (over 100KB limit)
-        large_file = test_dir / "large.spec.ts"
-        large_file.write_text("x" * 200000)
+    def test_detects_playwright_from_indicators(self, sample_test_config):
+        """Detects Playwright framework from indicators in file list."""
+        file_list = [
+            "playwright.config.ts",
+            "e2e/login.spec.ts",
+            "tests/api.spec.ts",
+            "src/component.ts",
+        ]
 
         spec.loader.exec_module(scan_module)
-        result = scan_module.find_test_files(
-            tmp_path, "test-repo", sample_test_config, max_files=20
+        result = scan_module.find_test_files_from_list(
+            file_list, "test-repo", sample_test_config, max_files=20
         )
 
-        # Should only find the small file
-        assert len(result) == 1
-        assert "small.spec.ts" in result[0]["path"]
+        # Should find spec files
+        assert len(result) >= 2
+        paths = [r["path"] for r in result]
+        assert any(".spec.ts" in p for p in paths)
 
-    def test_expands_brace_patterns(self, tmp_path):
-        """Expands brace patterns in search."""
-        config = {
-            "defaults": {
-                "generic_patterns": ["**/*.{spec,test}.ts"],
-                "global_excludes": [],
-            },
-            "limits": {"max_file_size_bytes": 102400},
-        }
-
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-        (test_dir / "example.spec.ts").write_text("spec test")
-        (test_dir / "example.test.ts").write_text("test test")
+    def test_uses_fallback_patterns_without_config(self):
+        """Uses fallback patterns when no config provided."""
+        file_list = [
+            "tests/example.spec.ts",
+            "tests/another.test.js",
+            "src/component.ts",
+        ]
 
         spec.loader.exec_module(scan_module)
-        result = scan_module.find_test_files(
-            tmp_path, "test-repo", config, max_files=20
+        result = scan_module.find_test_files_from_list(
+            file_list, "test-repo", None, max_files=20
         )
 
         assert len(result) == 2
+        paths = [r["path"] for r in result]
+        assert "tests/example.spec.ts" in paths
+        assert "tests/another.test.js" in paths
 
 
 class TestLoadTestConfig:

@@ -35,6 +35,10 @@ parameters:
   required: true
 - name: SLACK_WEBHOOK_URL
   value: ""
+- name: SLACK_NOTIFY_MODE
+  value: ""
+- name: SLACK_DIGEST_HOUR
+  value: ""
 - name: KEDA_TIMEZONE
   value: "Europe/Prague"
 - name: KEDA_CRON_START
@@ -157,6 +161,10 @@ objects:
           # Slack notifications
           - name: SLACK_WEBHOOK_URL
             value: ${SLACK_WEBHOOK_URL}
+          - name: SLACK_NOTIFY_MODE
+            value: ${SLACK_NOTIFY_MODE}
+          - name: SLACK_DIGEST_HOUR
+            value: ${SLACK_DIGEST_HOUR}
           # Proxy — shared pod deployed by platform-frontend-ai-dev
           - name: PROXY_HOST
             value: devbot-proxy

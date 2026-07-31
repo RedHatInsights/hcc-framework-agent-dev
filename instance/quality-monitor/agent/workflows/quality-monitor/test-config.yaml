@@ -52,3 +52,9 @@ limits:
   max_files_per_repo: 20
   max_file_size_bytes: 102400  # 100KB
   max_repos_per_scan: 3
+
+# Repositories to scan (whitelist)
+# Only these repos will be scanned for anti-patterns
+scan_only_repos:
+  - insights-chrome
+  - landing-page-frontend

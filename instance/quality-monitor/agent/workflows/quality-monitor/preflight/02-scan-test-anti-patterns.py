@@ -318,6 +318,16 @@ def main():
     repos = load_project_repos()
     repos_with_tests: Dict[str, Dict[str, Any]] = {}
 
+    # Filter repos if scan_only_repos is configured
+    scan_only = test_config.get("scan_only_repos") if test_config else None
+    if scan_only:
+        logger.info(f"Filtering to scan_only_repos: {scan_only}")
+        repos = {k: v for k, v in repos.items() if k in scan_only}
+        if not repos:
+            logger.warning("No repos match scan_only_repos filter")
+            output_result("skip", "No repositories configured in scan_only_repos")
+            return
+
     # Use temp directory for clones (automatic cleanup)
     temp_dir = None
     try:

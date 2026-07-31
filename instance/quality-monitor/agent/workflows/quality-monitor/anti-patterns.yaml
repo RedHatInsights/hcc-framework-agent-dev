@@ -99,6 +99,47 @@ anti_patterns:
         // ✅ GOOD: From environment
         const apiKey = process.env.TEST_API_KEY;
 
+  error_swallowing_catch:
+    regex: '(catch\s*\([^)]*\)\s*\{\s*\}|\.catch\(\s*\([^)]*\)\s*=>\s*(undefined|null|\{\})\s*\))'
+    severity: high
+    message: "Empty catch block or error handler swallows errors"
+    recommendation: "Either handle the error, re-throw, or fail the test explicitly"
+    examples:
+      bad: |
+        // ❌ BAD: Empty catch block
+        try {
+          await somethingThatMightFail();
+        } catch (e) {}
+
+        // ❌ BAD: Promise catch returns undefined
+        await somethingInTheUI().catch(() => undefined);
+
+        // ❌ BAD: Promise catch returns null
+        await fetchData().catch(() => null);
+
+      good: |
+        // ✅ GOOD: Fail test on unexpected error
+        try {
+          await somethingThatMightFail();
+        } catch (e) {
+          throw new Error(`Unexpected failure: ${e.message}`);
+        }
+
+        // ✅ GOOD: Handle specific expected errors
+        try {
+          await somethingThatMightFail();
+        } catch (e) {
+          if (e.code !== 'EXPECTED_ERROR') {
+            throw e;
+          }
+          // Handle expected error
+        }
+
+        // ✅ GOOD: Explicit failure with context
+        await somethingInTheUI().catch((e) => {
+          throw new Error(`UI action failed: ${e.message}`);
+        });
+
   # === LOW SEVERITY ===
   # These create noise but don't break tests
 

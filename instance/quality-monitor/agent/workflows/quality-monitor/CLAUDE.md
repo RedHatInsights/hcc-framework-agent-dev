@@ -75,7 +75,7 @@ For FAILURE conclusions only, create ticket using `jira_create_issue`:
 
 **Project**: RHCLOUD (or team-specific project from project-repos.json config)
 **Issue Type**: Bug
-**Priority**: High (FAILURE) / Medium (CANCELLED)
+**Priority**: High
 **Labels**: quality, ci-failure, needs-investigation
 
 **Summary**: `[Quality] PR #{pr_number} merged with failed CI checks in {repo}`
@@ -430,7 +430,6 @@ Track patterns over time:
 
 - ✅ FAILURE conclusions in merge violations
 - ✅ 3+ HIGH severity test anti-patterns
-- ❌ Single SKIPPED check (just Slack)
 - ❌ <3 total anti-patterns (too noisy)
 
 ### When to Send Slack Notifications
@@ -444,7 +443,6 @@ Track patterns over time:
 
 Don't create separate tickets for related findings:
 - Group all anti-patterns from same repo into one JIRA ticket
-- Batch multiple SKIPPED checks from same PR into one Slack message
 - Daily digest format if 10+ findings in one scan
 
 ### Duplicate Prevention

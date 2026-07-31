@@ -390,6 +390,7 @@ def main():
         # List files via GitHub API (no cloning needed)
         file_list = list_repo_files_via_api(org_repo)
         if not file_list:
+            logger.warning(f"{repo_name}: Failed to list files via GitHub API")
             continue
 
         # Find test files from file list

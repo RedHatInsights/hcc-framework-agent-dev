@@ -6,16 +6,40 @@ Automated code quality monitoring workflow for detecting:
 
 ## Overview
 
-This instance runs on a scheduled basis (daily at 9 AM) via KEDA cron scaling. It scans configured repositories and creates GitHub issues + Slack notifications for quality violations.
+This instance runs on a scheduled basis (daily at 9 AM) via KEDA cron scaling. It scans configured repositories and creates JIRA tickets + Slack notifications for quality violations. Created tickets can be consumed by other bot workflows for remediation.
 
 ## Configuration
 
 ### Required Files
 
 - `instance.yaml` - Workflow and environment preset configuration
-- `project-repos.json` - Repositories to monitor (copy from framework-config)
+- `project-repos.json` - Repositories to monitor (includes JIRA project mapping)
 - `mcp.json` - MCP server connections (Jira, memory server)
 - `workflows/quality-monitor/` - The workflow implementation
+
+### JIRA Configuration
+
+The `project-repos.json` file includes a `_config` section for JIRA settings:
+
+```json
+{
+  "_config": {
+    "jira": {
+      "default_project": "RHCLOUD",
+      "repo_mapping": {
+        "special-repo": "SPECIALPROJ"
+      }
+    }
+  }
+}
+```
+
+- `default_project`: JIRA project key to use for all tickets (default: RHCLOUD)
+- `repo_mapping`: Optional per-repo overrides for specific repositories
+
+Quality violations will create tickets in the configured JIRA project:
+- **Merge violations**: Bug tickets with High/Medium priority
+- **Test anti-patterns**: Task tickets with Medium/High priority based on severity
 
 ### Anti-Pattern Configuration
 
@@ -167,10 +191,10 @@ oc get scaledobject devbot-quality-cron-scaler -o yaml
 
 Via memory server API or dashboard:
 - Violations detected per day
-- GitHub issues created
+- JIRA tickets created (check task memory)
 - Slack notifications sent
-- Team response times
-- Remediation rates
+- Team response times (JIRA ticket age)
+- Remediation rates (ticket closure rate)
 
 ## Troubleshooting
 
@@ -180,11 +204,12 @@ Via memory server API or dashboard:
 - Verify pod is scaled up during scan window
 - Check preflight script time gating (9 AM only)
 
-### No Issues Created
+### No JIRA Tickets Created
 
-- Verify GH_TOKEN has repo permissions
-- Check gh CLI is authenticated: `oc exec <pod> -- gh auth status`
+- Verify JIRA MCP server is connected (check mcp.json)
+- Check task memory for duplicate detection (may skip if already created)
 - Check capacity isn't full: max 10 active tasks
+- Verify threshold met (FAILURE for merge violations, 3+ HIGH for test anti-patterns)
 
 ### No Slack Notifications
 

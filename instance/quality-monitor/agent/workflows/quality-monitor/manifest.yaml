@@ -12,11 +12,12 @@ provides:
 requires:
   mcp_servers:
     - bot-memory
+    - mcp-atlassian
   env_vars:
     - BOT_INSTANCE_ID
+    - GH_TOKEN
   optional_env_vars:
     - SLACK_WEBHOOK_URL
-    - GH_TOKEN
 
 shared_skills:
   - slack-notify

@@ -1,123 +1,81 @@
-# Quality Monitor Instance - Team-Specific Context
+# Quality Monitor Instance - Team Context
 
-This file supplements the workflow CLAUDE.md with instance-specific configuration.
+Instance-specific configuration supplementing workflow CLAUDE.md.
 
-## Team Context
+## Team Settings
 
-- **Slack channel for alerts**: #platform-quality (update to your channel)
-- **High-priority repos**: insights-chrome, rbac-service, platform-ui (update to your repos)
-- **Escalation contact**: @platform-lead (update to your team lead)
-- **Team timezone**: America/New_York
-- **Business hours**: 9 AM - 5 PM ET
+- **Slack**: #platform-quality
+- **High-priority repos**: insights-chrome, rbac-service, platform-ui
+- **Escalation**: @platform-lead
+- **Timezone**: America/New_York
+- **Hours**: 9 AM - 5 PM ET
 
-## Anti-Pattern Configuration
+## Notification Rules
 
-This instance uses `anti-patterns.yaml` for pattern definitions. See that file for:
-- Detection regexes
-- Severity levels
-- Remediation guidance
-- Code examples
+**Slack (when to send):**
+- All merge violations
+- 5+ HIGH test anti-patterns
+- Repeat offenders (3+ in 30 days)
 
-When analyzing findings, reference the specific remediation templates from `anti-patterns.yaml` in your notifications.
+**JIRA tickets (when to create):**
+- FAILURE merge violations
+- 3+ HIGH test anti-patterns
+- Repeat offenders
 
-## Notification Preferences
+**Labels:** quality, ci-failure (merges), tech-debt (tests), testing
 
-### Slack Notifications
+**Assignment:** Tag team from CODEOWNERS, let team self-assign
 
-**When to notify:**
-- All merge violations (any severity)
-- 5+ HIGH severity test anti-patterns
-- Repeat offenders (3+ violations in 30 days)
+## High-Priority Overrides
 
-**Format:**
-- Short summary with severity
-- Direct link to GitHub issue
-- Tag relevant team (from CODEOWNERS)
+For high-priority repos above:
+- Create tickets for any severity
+- Notify on all findings
+- Tag escalation contact for HIGH
 
-### GitHub Issues
+## False Positives
 
-**When to create:**
-- FAILURE conclusions in merge violations
-- 3+ HIGH severity test anti-patterns
-- Repeat offender repos
+If team marks "won't fix":
+1. Note in memory (repo + pattern + reason)
+2. Skip duplicate issues for same pattern
+3. Still track for trends
+4. Re-evaluate quarterly
 
-**Labels to apply:**
-- `quality` (always)
-- `ci-failure` (for merge violations)
-- `tech-debt` (for anti-patterns)
-- `testing` (for test-related issues)
+## Tracking
 
-**Assignment:**
-- Don't auto-assign to individuals
-- Tag team from CODEOWNERS in issue body
-- Let team self-assign
+Memory stores:
+- Issue creation/response times
+- Team response patterns
+- Remediation times (HIGH severity)
+- Repeat offender trends
 
-## Repository-Specific Rules
-
-### High-Priority Repos
-
-For repos marked as high-priority above:
-- Create GitHub issues for any severity (not just HIGH)
-- Send Slack notifications for all findings
-- Tag escalation contact for HIGH severity
-
-### Known Exceptions
-
-Some patterns may be intentional:
-- `console.log` in debugging utilities (not in tests themselves)
-- `.only()` in development branches (should never merge to main)
-- Hardcoded test credentials in fixture files (if sanitized)
-
-When in doubt, create the issue and let the team decide.
-
-## False Positive Handling
-
-If a team marks an issue as "won't fix" or "false positive":
-1. Add note to memory with repo + pattern + reason
-2. Don't create duplicate issues for same pattern in that repo
-3. Still track in memory for trending
-4. Re-evaluate quarterly (patterns may become relevant later)
-
-## Remediation Tracking
-
-Track in memory:
-- When issues are created
-- When team responds (comments, closes, labels)
-- Time-to-remediation for HIGH severity
-- Repeat offender patterns
-
-Use memory to identify:
-- Which repos/teams need more testing education
-- Which anti-patterns are most common
-- Whether remediation efforts are effective
+Use to identify:
+- Repos/teams needing education
+- Most common patterns
+- Remediation effectiveness
 
 ## Schedule
 
-This instance runs daily at 9 AM ET via KEDA cron scaling.
+Daily 9 AM ET via KEDA:
+- All repos for merge violations (24h window)
+- Up to 10 repos for anti-patterns (rotates)
 
-Each scan processes:
-- All repos for merge violations (last 24 hours)
-- Up to 10 repos for anti-pattern scanning (rotates daily)
+Full coverage: ~1 week for 50+ repos.
 
-Full anti-pattern coverage across all repos: ~1 week if you have 50+ repos.
+## Custom Patterns
 
-## Custom Anti-Patterns
+Edit `anti-patterns.yaml`:
+```yaml
+hardcoded_env_url:
+  regex: '(staging|prod)\.company\.com'
+  severity: medium
+  message: "Hardcoded environment URL"
+  recommendation: "Use env var for base URL"
+```
 
-To add team-specific anti-patterns:
-1. Edit `anti-patterns.yaml` in this workflow directory
-2. Add new pattern with regex, severity, recommendation
-3. Preflight script will automatically detect it
-4. Test regex with: `grep -E 'your-pattern' path/to/test/file`
+Test: `grep -E 'pattern' path/to/file`
 
-Example additions your team might want:
-- Hardcoded environment URLs (staging/prod)
-- Use of deprecated testing utilities
-- Missing data-testid attributes (for E2E tests)
+Suggestions:
+- Deprecated test utilities
+- Missing data-testid
 - Snapshot tests without descriptions
-
-## Resources
-
-Link to team documentation:
-- Testing best practices: (add your wiki link)
-- CI/CD troubleshooting: (add your runbook link)
-- How to fix flaky tests: (add your guide link)

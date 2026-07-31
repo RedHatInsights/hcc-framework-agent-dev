@@ -7,7 +7,7 @@ import logging
 import re
 import shutil
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from itertools import islice
 from typing import Optional, Dict, Any, List, Tuple
@@ -278,7 +278,7 @@ def main():
     # Only run once per day (KEDA controls pod scheduling)
     state = load_state()
     last_scan_date = state.get("last_anti_pattern_scan", "")
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     if last_scan_date == today:
         logger.info(f"Already scanned today ({today})")

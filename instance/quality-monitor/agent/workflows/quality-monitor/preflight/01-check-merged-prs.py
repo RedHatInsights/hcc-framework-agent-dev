@@ -139,7 +139,7 @@ def main():
     # Only run once per day (KEDA controls pod scheduling)
     state = load_state()
     last_scan_date = state.get("last_merge_check_scan", "")
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     if last_scan_date == today:
         logger.info(f"Already scanned today ({today})")

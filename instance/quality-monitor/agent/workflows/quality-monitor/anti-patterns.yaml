@@ -54,6 +54,43 @@ anti_patterns:
   # === MEDIUM SEVERITY ===
   # These hide test failures or create maintenance burden
 
+  duplicated_auth_code:
+    regex: '(page\.(fill|type|click)\([^)]*(["\x27](username|password|login|email)["\x27]|#(username|password|login|email))|page\.goto\([^)]*login|page\.locator\([^)]*(["\x27](username|password|login)["\x27])'
+    severity: medium
+    message: "Custom login/auth code detected - consider using playwright-test-auth"
+    recommendation: "Use playwright-test-auth package for consistent authentication unless testing multi-user scenarios"
+    examples:
+      bad: |
+        // ❌ BAD: Duplicated auth code in every test
+        test('should access dashboard', async ({ page }) => {
+          await page.goto('/login');
+          await page.fill('#username', 'testuser');
+          await page.fill('#password', 'testpass');
+          await page.click('button[type="submit"]');
+          await page.waitForURL('/dashboard');
+          // actual test...
+        });
+
+      good: |
+        // ✅ GOOD: Use playwright-test-auth
+        import { test } from '@redhat-cloud-services/playwright-test-auth';
+
+        test('should access dashboard', async ({ page }) => {
+          // Already authenticated via fixture
+          await page.goto('/dashboard');
+          // actual test...
+        });
+
+        // ✅ ALSO GOOD: Custom auth when testing multi-user scenarios
+        test('user permissions', async ({ page }) => {
+          // Valid: Testing as different users in same session
+          await loginAsAdmin(page);
+          await verifyAdminAccess();
+
+          await loginAsUser(page);
+          await verifyUserAccess();
+        });
+
   disabled_tests:
     regex: '(\.skip\(|\.only\(|x(?:it|describe|test)\(|@pytest\.mark\.skip|@Ignore|@Disabled)'
     severity: medium

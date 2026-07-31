@@ -1,24 +1,51 @@
 # Test Anti-Pattern Configuration
 #
 # This file defines detectable test anti-patterns with severity levels,
-# detection patterns, and remediation guidance.
+# remediation guidance, and ESLint rule recommendations.
 #
-# Each pattern requires:
-#   - regex: Grep-compatible regular expression for detection
+# Each pattern includes:
 #   - severity: high | medium | low (affects notification priority)
 #   - message: Short description shown in reports
 #   - recommendation: Specific guidance for fixing the issue
-#   - examples: (optional) Code examples showing the problem and fix
+#   - examples: Code examples showing the problem and fix
+#   - eslint_rules: Applicable ESLint rules to prevent the issue (or null if not applicable)
 
 anti_patterns:
   # === HIGH SEVERITY ===
   # These create flaky, unreliable tests
 
   hard_coded_sleep:
-    regex: '(sleep\(|setTimeout\(|time\.sleep\(|Thread\.sleep\()["\"]?\d+'
     severity: high
     message: "Hard-coded sleep/wait detected"
     recommendation: "Use proper waits (waitFor, until, expect.toPass) instead of fixed delays"
+    eslint_rules:
+      - name: "no-restricted-syntax"
+        config: |
+          // Add to .eslintrc.js rules:
+          "no-restricted-syntax": [
+            "error",
+            {
+              "selector": "CallExpression[callee.name='setTimeout']",
+              "message": "Avoid setTimeout in tests. Use waitFor or other proper waits."
+            },
+            {
+              "selector": "CallExpression[callee.object.name='Promise'][callee.property.name='resolve']",
+              "message": "Avoid Promise-based delays. Use Playwright's built-in wait methods."
+            }
+          ]
+        note: "Catches setTimeout and Promise-based delays in test code"
+      - name: "@typescript-eslint/no-magic-numbers"
+        config: |
+          // Add to .eslintrc.js rules:
+          "@typescript-eslint/no-magic-numbers": [
+            "error",
+            {
+              "ignore": [0, 1, -1],
+              "ignoreEnums": true,
+              "ignoreNumericLiteralTypes": true
+            }
+          ]
+        note: "Can catch hard-coded timeout values like setTimeout(5000)"
     examples:
       bad: |
         // ❌ BAD: Hard-coded delay
@@ -32,10 +59,11 @@ anti_patterns:
         await expect(page.locator('.success')).toBeVisible();
 
   missing_assertions:
-    regex: '(it|test)\([^)]+\)\s*=>\s*\{[^}]*\}'
     severity: high
     message: "Test with no assertions detected"
     recommendation: "Add expect() assertions to verify test outcomes"
+    eslint_rules: null
+    note: "No standard ESLint rule for this pattern. Consider custom rule or test coverage tools."
     examples:
       bad: |
         // ❌ BAD: No verification
@@ -51,96 +79,33 @@ anti_patterns:
           expect(data.length).toBeGreaterThan(0);
         });
 
-  # === MEDIUM SEVERITY ===
-  # These hide test failures or create maintenance burden
-
-  duplicated_auth_code:
-    regex: '(page\.(fill|type|click)\([^)]*(["\x27](username|password|login|email)["\x27]|#(username|password|login|email))|page\.goto\([^)]*login|page\.locator\([^)]*(["\x27](username|password|login)["\x27])'
-    severity: medium
-    message: "Custom login/auth code detected - consider using playwright-test-auth"
-    recommendation: "Use playwright-test-auth package for consistent authentication unless testing multi-user scenarios"
-    examples:
-      bad: |
-        // ❌ BAD: Duplicated auth code in every test
-        test('should access dashboard', async ({ page }) => {
-          await page.goto('/login');
-          await page.fill('#username', 'testuser');
-          await page.fill('#password', 'testpass');
-          await page.click('button[type="submit"]');
-          await page.waitForURL('/dashboard');
-          // actual test...
-        });
-
-      good: |
-        // ✅ GOOD: Use playwright-test-auth
-        import { test } from '@redhat-cloud-services/playwright-test-auth';
-
-        test('should access dashboard', async ({ page }) => {
-          // Already authenticated via fixture
-          await page.goto('/dashboard');
-          // actual test...
-        });
-
-        // ✅ ALSO GOOD: Custom auth when testing multi-user scenarios
-        test('user permissions', async ({ page }) => {
-          // Valid: Testing as different users in same session
-          await loginAsAdmin(page);
-          await verifyAdminAccess();
-
-          await loginAsUser(page);
-          await verifyUserAccess();
-        });
-
-  disabled_tests:
-    regex: '(\.skip\(|\.only\(|x(?:it|describe|test)\(|@pytest\.mark\.skip|@Ignore|@Disabled)'
-    severity: medium
-    message: "Disabled or focused test detected"
-    recommendation: "Re-enable test or document reason for skip with ticket reference"
-    examples:
-      bad: |
-        // ❌ BAD: Commented/skipped with no context
-        it.skip('should handle edge case', () => {
-          // TODO: fix later
-        });
-
-      good: |
-        // ✅ GOOD: Documented skip with ticket
-        it.skip('should handle edge case', () => {
-          // Skipped: JIRA-123 - race condition in CI
-          // Re-enable after infrastructure upgrade
-        });
-
-  test_only_focused:
-    regex: '\.(only)\('
-    severity: medium
-    message: "Focused test detected (.only)"
-    recommendation: "Remove .only() - it prevents other tests from running"
-    examples:
-      bad: |
-        // ❌ BAD: Blocks other tests
-        it.only('debugging this test', () => {
-          expect(true).toBe(true);
-        });
-
-  hardcoded_credentials:
-    regex: '(password|secret|token|api[_-]?key)\s*=\s*["\x27][^\"\x27]{8,}["\x27]'
-    severity: high
-    message: "Hardcoded credentials in test"
-    recommendation: "Use environment variables or test fixtures for credentials"
-    examples:
-      bad: |
-        // ❌ BAD: Hardcoded secret
-        const apiKey = "sk-1234567890abcdef";
-
-      good: |
-        // ✅ GOOD: From environment
-        const apiKey = process.env.TEST_API_KEY;
-
   error_swallowing_catch:
-    regex: '(catch\s*\([^)]*\)\s*\{\s*\}|\.catch\(\s*\([^)]*\)\s*=>\s*(undefined|null|\{\})\s*\))'
     severity: high
     message: "Empty catch block or error handler swallows errors"
     recommendation: "Either handle the error, re-throw, or fail the test explicitly"
+    eslint_rules:
+      - name: "no-empty"
+        config: |
+          // Add to .eslintrc.js rules:
+          "no-empty": [
+            "error",
+            {
+              "allowEmptyCatch": false
+            }
+          ]
+        note: "Catches empty catch blocks"
+      - name: "@typescript-eslint/no-unused-vars"
+        config: |
+          // Add to .eslintrc.js rules:
+          "@typescript-eslint/no-unused-vars": [
+            "error",
+            {
+              "args": "all",
+              "argsIgnorePattern": "^_",
+              "caughtErrors": "all"
+            }
+          ]
+        note: "Catches unused error variables in catch blocks: catch (e) {}"
     examples:
       bad: |
         // ❌ BAD: Empty catch block
@@ -177,14 +142,127 @@ anti_patterns:
           throw new Error(`UI action failed: ${e.message}`);
         });
 
+  # === MEDIUM SEVERITY ===
+  # These hide test failures or create maintenance burden
+
+  duplicated_auth_code:
+    severity: medium
+    message: "Custom login/auth code detected - consider using playwright-test-auth"
+    recommendation: "Use playwright-test-auth package for consistent authentication unless testing multi-user scenarios"
+    eslint_rules: null
+    note: "No ESLint rule for this pattern. This is a code duplication concern best addressed through refactoring to shared fixtures."
+    examples:
+      bad: |
+        // ❌ BAD: Duplicated auth code in every test
+        test('should access dashboard', async ({ page }) => {
+          await page.goto('/login');
+          await page.fill('#username', 'testuser');
+          await page.fill('#password', 'testpass');
+          await page.click('button[type="submit"]');
+          await page.waitForURL('/dashboard');
+          // actual test...
+        });
+
+      good: |
+        // ✅ GOOD: Use playwright-test-auth
+        import { test } from '@redhat-cloud-services/playwright-test-auth';
+
+        test('should access dashboard', async ({ page }) => {
+          // Already authenticated via fixture
+          await page.goto('/dashboard');
+          // actual test...
+        });
+
+        // ✅ ALSO GOOD: Custom auth when testing multi-user scenarios
+        test('user permissions', async ({ page }) => {
+          // Valid: Testing as different users in same session
+          await loginAsAdmin(page);
+          await verifyAdminAccess();
+
+          await loginAsUser(page);
+          await verifyUserAccess();
+        });
+
+  disabled_tests:
+    severity: medium
+    message: "Disabled or focused test detected"
+    recommendation: "Re-enable test or document reason for skip with ticket reference"
+    eslint_rules:
+      - name: "jest/no-disabled-tests"
+        config: |
+          // Add to .eslintrc.js (requires eslint-plugin-jest):
+          "jest/no-disabled-tests": "error"
+        note: "Catches .skip() and xdescribe/xit patterns in Jest/Vitest"
+      - name: "playwright/no-skipped-test"
+        config: |
+          // Add to .eslintrc.js (requires eslint-plugin-playwright):
+          "playwright/no-skipped-test": [
+            "error",
+            {
+              "allowConditional": true
+            }
+          ]
+        note: "Catches .skip() in Playwright tests, allows conditional skips"
+    examples:
+      bad: |
+        // ❌ BAD: Commented/skipped with no context
+        it.skip('should handle edge case', () => {
+          // TODO: fix later
+        });
+
+      good: |
+        // ✅ GOOD: Documented skip with ticket
+        it.skip('should handle edge case', () => {
+          // Skipped: JIRA-123 - race condition in CI
+          // Re-enable after infrastructure upgrade
+        });
+
+  test_only_focused:
+    severity: medium
+    message: "Focused test detected (.only)"
+    recommendation: "Remove .only() - it prevents other tests from running"
+    eslint_rules:
+      - name: "jest/no-focused-tests"
+        config: |
+          // Add to .eslintrc.js (requires eslint-plugin-jest):
+          "jest/no-focused-tests": "error"
+        note: "Catches .only() and fdescribe/fit patterns in Jest/Vitest"
+      - name: "playwright/no-focused-test"
+        config: |
+          // Add to .eslintrc.js (requires eslint-plugin-playwright):
+          "playwright/no-focused-test": "error"
+        note: "Catches test.only() in Playwright tests"
+    examples:
+      bad: |
+        // ❌ BAD: Blocks other tests
+        it.only('debugging this test', () => {
+          expect(true).toBe(true);
+        });
+
+      good: |
+        // ✅ GOOD: Run all tests
+        it('debugging this test', () => {
+          expect(true).toBe(true);
+        });
+
   # === LOW SEVERITY ===
   # These create noise but don't break tests
 
   console_log_in_tests:
-    regex: 'console\.(log|debug|info)\('
     severity: low
     message: "Console logging in test"
     recommendation: "Remove debug logs or use proper test logging/reporting"
+    eslint_rules:
+      - name: "no-console"
+        config: |
+          // Add to .eslintrc.js rules:
+          "no-console": [
+            "error",
+            {
+              "allow": ["warn", "error"]
+            }
+          ]
+        note: "Catches console.log and console.debug, allows console.warn/error"
     examples:
       bad: |
         // ❌ BAD: Debug logging left in
@@ -201,10 +279,35 @@ anti_patterns:
         });
 
   todo_comments:
-    regex: '(TODO|FIXME|HACK|XXX):'
     severity: low
     message: "TODO comment in test"
     recommendation: "Create ticket for TODO or implement the test"
+    eslint_rules:
+      - name: "no-warning-comments"
+        config: |
+          // Add to .eslintrc.js rules:
+          "no-warning-comments": [
+            "warn",
+            {
+              "terms": ["todo", "fixme", "hack", "xxx"],
+              "location": "anywhere"
+            }
+          ]
+        note: "Catches TODO/FIXME/HACK comments (warns instead of errors)"
+    examples:
+      bad: |
+        // ❌ BAD: Untracked TODO
+        it('should work', () => {
+          // TODO: add more assertions
+          expect(true).toBe(true);
+        });
+
+      good: |
+        // ✅ GOOD: Tracked with ticket
+        it('should work', () => {
+          // JIRA-456: Add edge case coverage
+          expect(true).toBe(true);
+        });
 
 # Remediation Guidance
 

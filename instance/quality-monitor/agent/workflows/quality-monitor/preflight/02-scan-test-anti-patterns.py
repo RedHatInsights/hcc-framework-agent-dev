@@ -375,31 +375,20 @@ def main():
         f"Found {total_files} test files across {len(repos_with_tests)} repositories"
     )
 
-    # Format for AI - just list the files to analyze
+    # Format for AI - compact format without redundant instructions
+    # (Workflow CLAUDE.md already contains the instructions)
     total_files = sum(len(data["files"]) for data in repos_with_tests.values())
-    content = f"# Test Anti-Pattern Scan\n\n"
-    content += f"Found {total_files} test files across {len(repos_with_tests)} repositories.\n\n"
-    content += f"**Instructions:**\n"
-    content += f"1. Read `instance/quality-monitor/agent/workflows/quality-monitor/anti-patterns.yaml` for pattern definitions\n"
-    content += f"2. Analyze the test files below for those patterns\n"
-    content += f"3. Focus on HIGH severity patterns first\n"
-    content += f"4. Use the examples in anti-patterns.yaml to guide your analysis\n\n"
+    content = f"# Test Files for Anti-Pattern Analysis ({total_files} files)\n\n"
 
     for repo, data in repos_with_tests.items():
         test_files = data["files"]
         framework = data["framework"]
-        content += (
-            f"## {repo} ({len(test_files)} test files, framework: {framework})\n\n"
-        )
-        for test_file in test_files:
-            content += f"- `{test_file['path']}` ({test_file['size']} bytes)\n"
-        content += "\n"
 
-    content += f"\n**Next steps:**\n"
-    content += f"1. Read anti-patterns.yaml\n"
-    content += f"2. Read a sample of the test files listed above\n"
-    content += f"3. Identify any anti-patterns based on the definitions\n"
-    content += f"4. Create GitHub issues and notifications per workflow CLAUDE.md\n"
+        # Compact format: comma-separated file list
+        file_list = ", ".join(f["path"] for f in test_files)
+
+        content += f"{repo} ({len(test_files)} files, {framework}):\n"
+        content += f"  {file_list}\n\n"
 
     output_result("start", content)
 

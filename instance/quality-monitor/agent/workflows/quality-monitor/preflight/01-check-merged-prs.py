@@ -249,13 +249,9 @@ def main():
         f"Found {total_violations} violations across {len(violations)} repositories"
     )
 
-    # Format for AI
-    total = sum(len(v) for v in violations.values())
-    content = f"# Merge-Without-Checks Violations\n\n"
-    content += f"Found {total} PRs merged with failed checks across {len(violations)} repositories:\n\n"
-
+    # Group violations by severity for better prioritization
+    by_severity = {"HIGH": [], "MEDIUM": [], "LOW": []}
     for repo, prs in violations.items():
-        content += f"## {repo} ({len(prs)} violations)\n\n"
         for pr in prs:
             # Determine severity
             has_failure = any(c["conclusion"] == "FAILURE" for c in pr["failed_checks"])
@@ -263,17 +259,32 @@ def main():
                 c["conclusion"] == "CANCELLED" for c in pr["failed_checks"]
             )
             severity = "HIGH" if has_failure else "MEDIUM" if has_cancelled else "LOW"
+            by_severity[severity].append({**pr, "repo": repo})
 
-            content += f"### PR #{pr['number']}: {pr['title']} [**{severity}**]\n"
-            content += f"- **URL:** {pr['url']}\n"
-            content += f"- **Author:** @{pr['author']}\n"
-            content += f"- **Merged:** {pr['merged_at']}\n"
-            content += f"- **Failed checks:**\n"
-            for check in pr["failed_checks"]:
-                content += f"  - `{check['name']}`: {check['conclusion']}\n"
-                if check.get("url"):
-                    content += f"    - Details: {check['url']}\n"
-            content += "\n"
+    # Format for AI - compact YAML-style format
+    total = sum(len(v) for v in by_severity.values())
+    content = f"# Merge Violations ({total} total)\n\n"
+
+    for severity in ["HIGH", "MEDIUM", "LOW"]:
+        items = by_severity[severity]
+        if not items:
+            continue
+
+        content += f"{severity.lower()}:\n"
+        for item in items:
+            # Extract date only (not full timestamp)
+            merged_date = item["merged_at"][:10] if item["merged_at"] else "unknown"
+
+            # Compact check list
+            check_list = ", ".join(c["name"] for c in item["failed_checks"])
+
+            # Single line per violation
+            content += (
+                f"  - {item['repo']} #{item['number']}: {item['title']} "
+                f"(@{item['author']}, {merged_date})\n"
+                f"    failed: {check_list}\n"
+            )
+        content += "\n"
 
     output_result("start", content)
 

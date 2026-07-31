@@ -472,7 +472,8 @@ class TestSeverityAssessment:
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]
-        assert "HIGH" in call_args[1]
+        # Check for lowercase "high:" in new compact format
+        assert "high:" in call_args[1]
 
     def test_cancelled_is_medium_severity(self, mock_common_module):
         """CANCELLED conclusions are marked as MEDIUM severity."""
@@ -519,7 +520,8 @@ class TestSeverityAssessment:
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]
-        assert "MEDIUM" in call_args[1]
+        # Check for lowercase "medium:" in new compact format
+        assert "medium:" in call_args[1]
 
 
 if __name__ == "__main__":

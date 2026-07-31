@@ -51,12 +51,12 @@ def test_repo(repo_path: str):
 
     # Get test patterns
     patterns, excludes = scanner.get_test_patterns(repo_path.name, repo_path, config)
-    print(f"\n🎯 Test patterns:")
+    print("\n🎯 Test patterns:")
     for pattern in patterns:
         print(f"  - {pattern}")
 
     if excludes:
-        print(f"\n🚫 Exclude patterns:")
+        print("\n🚫 Exclude patterns:")
         for exclude in excludes:
             print(f"  - {exclude}")
 

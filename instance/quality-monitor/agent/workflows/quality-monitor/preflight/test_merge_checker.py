@@ -177,7 +177,7 @@ def test_repo(repo_path: str, limit: int = 10):
                 for check in violation["failed_checks"]:
                     print(f"      - {check['name']}: {check['conclusion']}")
             else:
-                print(f"   ✅ All checks passed")
+                print("   ✅ All checks passed")
 
             print()
 

@@ -4,13 +4,12 @@
 import pytest
 import yaml
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, patch
 import sys
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from typing import Any
 
 
 # Import functions under test (will be imported after mocking common module)

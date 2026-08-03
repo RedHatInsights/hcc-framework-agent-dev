@@ -1,0 +1,7 @@
+workflow: ./workflows/quality-monitor
+source: scheduled
+envs:
+  - slack
+  - node
+claude_md:
+  strategy: append

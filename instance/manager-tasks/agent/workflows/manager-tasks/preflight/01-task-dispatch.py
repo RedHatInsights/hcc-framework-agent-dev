@@ -81,7 +81,12 @@ def check_weekly_report():
     weekday = today.weekday()  # Monday=0, Tuesday=1, Wednesday=2
 
     # TODO: Remove Monday (0) and Friday (4) once testing is complete
-    if weekday not in (0, 1, 2, 4):  # Monday (testing), Tuesday, Wednesday, Friday (testing)
+    if weekday not in (
+        0,
+        1,
+        2,
+        4,
+    ):  # Monday (testing), Tuesday, Wednesday, Friday (testing)
         return False, None, "Not a scheduled day"
 
     friday = _friday_of_week(today)
@@ -130,15 +135,19 @@ def check_weekly_report():
         # PR has new feedback to address
         if has_new_feedback(enriched):
             from common import fmt_comments, fmt_task_header
+
             lines = fmt_task_header(task)
             for p in enriched["prs"]:
                 issue_str = ",".join(p["issues"]) if p["issues"] else "clean"
                 lines.append(f"  PR {p['repo']}#{p['num']} [{issue_str}]")
             if enriched["pr_comments"]:
-                lines.append(fmt_comments(
-                    enriched["pr_comments"], "review_comments",
-                    since=task.get("last_addressed"),
-                ))
+                lines.append(
+                    fmt_comments(
+                        enriched["pr_comments"],
+                        "review_comments",
+                        since=task.get("last_addressed"),
+                    )
+                )
 
             content = (
                 f"## TASK: weekly-report-feedback\n\n"
@@ -170,7 +179,12 @@ def check_weekly_report():
 TASKS = [
     {
         "name": "weekly-report",
-        "days": [0, 1, 2, 4],  # Monday (testing), Tuesday, Wednesday, Friday (testing)  # TODO: Remove 0,4 once testing is complete
+        "days": [
+            0,
+            1,
+            2,
+            4,
+        ],  # Monday (testing), Tuesday, Wednesday, Friday (testing)  # TODO: Remove 0,4 once testing is complete
         "check": check_weekly_report,
     },
     # Future tasks:

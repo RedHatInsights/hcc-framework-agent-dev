@@ -85,7 +85,9 @@ def _get_recommended_sleep():
         if start_h <= hour < end_h:
             if sleep_val == "skip":
                 secs = (end_h - hour) * 3600 - now.minute * 60
-                return max(secs, 600), f"gap {start_h}:00-{end_h}:00, sleeping until next window UTC"
+                return max(
+                    secs, 600
+                ), f"gap {start_h}:00-{end_h}:00, sleeping until next window UTC"
             return sleep_val, f"slot {start_h}:00-{end_h}:00 UTC"
 
     return 3600, "outside defined time slots"
@@ -102,10 +104,14 @@ def main():
     sleep_secs, reason = _get_recommended_sleep()
 
     CYCLE_SLEEP_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CYCLE_SLEEP_FILE.write_text(json.dumps({
-        "recommended_sleep": sleep_secs,
-        "reason": reason,
-    }))
+    CYCLE_SLEEP_FILE.write_text(
+        json.dumps(
+            {
+                "recommended_sleep": sleep_secs,
+                "reason": reason,
+            }
+        )
+    )
 
     print(f"Cycle sleep: {sleep_secs}s ({reason})", file=sys.stderr)
     json.dump(

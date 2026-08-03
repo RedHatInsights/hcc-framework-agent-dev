@@ -38,7 +38,7 @@ Use `jira_search` to find quality monitor tickets:
 # Find quality monitor tickets that need attention
 jira_search(
     jql="project = RHCLOUD AND labels = quality AND status != Done",
-    fields=["summary", "status", "comments", "updated"]
+    fields=["summary", "status", "comments", "updated"],
 )
 ```
 
@@ -310,7 +310,7 @@ ticket = jira_create_issue(
     summary=f"[Quality] PR #{pr_number} merged with failed CI checks in {repo}",
     description="...",  # formatted per template above
     priority="High" if severity == "FAILURE" else "Medium",
-    labels=["quality", "ci-failure", "needs-investigation"]
+    labels=["quality", "ci-failure", "needs-investigation"],
 )
 
 # Track in task memory
@@ -329,8 +329,8 @@ task_add(
         "author": author,
         "failed_checks": [...],
         "severity": "high|medium|low",
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    },
 )
 ```
 
@@ -360,7 +360,7 @@ ticket = jira_create_issue(
     summary=f"[Quality] {pattern_count} test anti-patterns detected in {repo}",
     description="...",  # formatted per template above
     priority="High" if high_count >= 6 else "Medium",
-    labels=["quality", "tech-debt", "testing", "anti-patterns"]
+    labels=["quality", "tech-debt", "testing", "anti-patterns"],
 )
 
 # Track in task memory
@@ -378,8 +378,8 @@ task_add(
         "low_count": low_count,
         "patterns_found": pattern_names,
         "scan_date": scan_date,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    },
 )
 ```
 
@@ -398,12 +398,12 @@ memory_store(
     tags=["quality", "ci-violations" or "testing", repo],
     content=f"""
 Quality scan of {repo} on {date}:
-Type: {merge-violation or test-anti-patterns}
+Type: {merge - violation or test - anti - patterns}
 Findings: {summary}
 Pattern suggests: {analysis}
 Recommended approach: {recommendation}
 Outcome: {what_was_done}
-"""
+""",
 )
 ```
 

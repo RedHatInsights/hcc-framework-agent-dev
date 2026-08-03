@@ -317,7 +317,9 @@ def list_repo_files_via_api(org_repo: str, branch: str = "main") -> Optional[Lis
         return files
 
     except subprocess.TimeoutExpired:
-        logger.warning(f"Timeout listing files for {org_repo} after {TIMEOUT_API_LIST}s")
+        logger.warning(
+            f"Timeout listing files for {org_repo} after {TIMEOUT_API_LIST}s"
+        )
         return None
 
 
@@ -334,13 +336,20 @@ def main():
         try:
             last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
         except (ValueError, TypeError) as e:
-            logger.warning(f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan.")
+            logger.warning(
+                f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan."
+            )
 
     if last_scan_timestamp:
         time_since_scan = now - last_scan_timestamp
         if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
-            logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)")
-            output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago")
+            logger.info(
+                f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)"
+            )
+            output_result(
+                "skip",
+                f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago",
+            )
             return
     else:
         logger.info("No previous scan timestamp found - first run")

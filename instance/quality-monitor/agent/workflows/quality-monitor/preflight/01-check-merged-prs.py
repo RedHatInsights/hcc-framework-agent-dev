@@ -153,13 +153,20 @@ def main():
         try:
             last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
         except (ValueError, TypeError) as e:
-            logger.warning(f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan.")
+            logger.warning(
+                f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan."
+            )
 
     if last_scan_timestamp:
         time_since_scan = now - last_scan_timestamp
         if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
-            logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)")
-            output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago")
+            logger.info(
+                f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)"
+            )
+            output_result(
+                "skip",
+                f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago",
+            )
             return
     else:
         logger.info("No previous scan timestamp found - first run")
@@ -187,7 +194,11 @@ def main():
     repos = load_project_repos()
     violations: Dict[str, List[Dict[str, Any]]] = {}
 
-    since = last_scan_timestamp if last_scan_timestamp else now - timedelta(hours=SCAN_INTERVAL_HOURS)
+    since = (
+        last_scan_timestamp
+        if last_scan_timestamp
+        else now - timedelta(hours=SCAN_INTERVAL_HOURS)
+    )
 
     logger.info(
         f"Checking {len(repos)} repositories for merge violations since {since}"

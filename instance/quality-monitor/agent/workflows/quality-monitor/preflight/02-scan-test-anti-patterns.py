@@ -31,9 +31,10 @@ MAX_CONCURRENT_SCANS = 5  # Max test scan tasks to process at once
 DEFAULT_MAX_REPOS_PER_SCAN = 3  # Default repos to scan per run
 
 # Scheduling constants
+SECONDS_PER_HOUR = 3600
 SCAN_INTERVAL_HOURS = 24  # Expected KEDA trigger interval
 SCAN_BUFFER_HOURS = 1  # Buffer for scheduler drift
-MIN_SCAN_GAP_SECONDS = (SCAN_INTERVAL_HOURS - SCAN_BUFFER_HOURS) * 3600
+MIN_SCAN_GAP_SECONDS = (SCAN_INTERVAL_HOURS - SCAN_BUFFER_HOURS) * SECONDS_PER_HOUR
 
 
 def load_test_config() -> Optional[Dict[str, Any]]:
@@ -334,8 +335,8 @@ def main():
             time_since_scan = now - last_scan_timestamp
 
             if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
-                logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / 3600:.1f}h ago)")
-                output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / 3600:.1f}h ago")
+                logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)")
+                output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago")
                 return
         except (ValueError, TypeError) as e:
             logger.warning(f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan.")

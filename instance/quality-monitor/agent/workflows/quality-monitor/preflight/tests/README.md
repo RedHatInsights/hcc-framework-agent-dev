@@ -113,9 +113,9 @@ def mock_common_module():
     mock_common.load_project_repos = Mock(return_value={})
     mock_common.output_result = Mock()
     # ... other mocks
-    sys.modules['common'] = mock_common
+    sys.modules["common"] = mock_common
     yield mock_common
-    del sys.modules['common']
+    del sys.modules["common"]
 ```
 
 This ensures tests run without requiring bot infrastructure.

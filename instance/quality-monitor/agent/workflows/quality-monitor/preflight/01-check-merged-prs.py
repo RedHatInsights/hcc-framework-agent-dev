@@ -136,15 +136,26 @@ def check_pr_violations(
 
 def main():
     """Main entry point for merge violation checker."""
-    # Only run once per day (KEDA controls pod scheduling)
+    # Align with KEDA scheduler - track timestamp instead of date
     state = load_state()
-    last_scan_date = state.get("last_merge_check_scan", "")
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last_scan_timestamp_str = state.get("last_merge_check_timestamp")
+    now = datetime.now(timezone.utc)
 
-    if last_scan_date == today:
-        logger.info(f"Already scanned today ({today})")
-        output_result("skip", f"Already scanned today ({today})")
-        return
+    # Calculate time since last scan
+    if last_scan_timestamp_str:
+        try:
+            last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
+            time_since_scan = now - last_scan_timestamp
+
+            # Skip if scanned within last 23 hours (allow 1 hour buffer for scheduler drift)
+            if time_since_scan.total_seconds() < (23 * 3600):
+                logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / 3600:.1f}h ago)")
+                output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / 3600:.1f}h ago")
+                return
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan.")
+    else:
+        logger.info("No previous scan timestamp found - first run")
 
     # Check capacity
     active_n, max_n = get_capacity()
@@ -235,8 +246,8 @@ def main():
             logger.error(f"Invalid JSON from gh CLI for {upstream}: {e}")
             continue
 
-    # Mark as scanned today
-    save_state({"last_merge_check_scan": today})
+    # Mark scan timestamp (aligns with KEDA scheduler)
+    save_state({"last_merge_check_timestamp": now.isoformat()})
 
     if not violations:
         logger.info("No merged PRs with failed checks in last 24h")

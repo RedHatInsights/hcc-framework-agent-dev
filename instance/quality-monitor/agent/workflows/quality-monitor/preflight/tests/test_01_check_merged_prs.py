@@ -227,11 +227,15 @@ class TestCheckPrViolations:
 class TestMainFunction:
     """Integration tests for main() function."""
 
-    def test_skips_when_already_scanned_today(self, mock_common_module):
-        """Skips scan if already run today."""
-        today = datetime.now().strftime("%Y-%m-%d")
+    def test_skips_when_scanned_recently(self, mock_common_module):
+        """Skips scan if scanned within last 23 hours."""
+        from datetime import timezone
 
-        mock_common_module.load_state.return_value = {"last_merge_check_scan": today}
+        # Simulate scan 22 hours ago
+        recent_scan = datetime.now(timezone.utc) - timedelta(hours=22)
+        mock_common_module.load_state.return_value = {
+            "last_merge_check_timestamp": recent_scan.isoformat()
+        }
 
         spec.loader.exec_module(check_module)
         check_module.main()
@@ -239,7 +243,99 @@ class TestMainFunction:
         mock_common_module.output_result.assert_called_once()
         call_args = mock_common_module.output_result.call_args[0]
         assert call_args[0] == "skip"
-        assert today in call_args[1]
+        assert "22" in call_args[1] or "ago" in call_args[1]
+
+    def test_runs_when_no_previous_timestamp(self, mock_common_module):
+        """Runs scan on first execution when no timestamp exists."""
+        from datetime import timezone
+
+        mock_common_module.load_state.return_value = {}
+        mock_common_module.get_capacity.return_value = (0, 10)
+        mock_common_module.get_tasks.return_value = []
+        mock_common_module.load_project_repos.return_value = {}
+
+        spec.loader.exec_module(check_module)
+        check_module.main()
+
+        # Should not skip due to missing timestamp
+        mock_common_module.output_result.assert_called_once()
+        call_args = mock_common_module.output_result.call_args[0]
+        # Will skip with "no violations" message, not timestamp message
+        assert call_args[0] == "skip"
+        assert "ago" not in call_args[1]  # No timestamp-related skip
+
+    def test_runs_when_scan_is_old_enough(self, mock_common_module):
+        """Runs scan when previous scan was >23 hours ago."""
+        from datetime import timezone
+
+        # Simulate scan 24 hours ago
+        old_scan = datetime.now(timezone.utc) - timedelta(hours=24)
+        mock_common_module.load_state.return_value = {
+            "last_merge_check_timestamp": old_scan.isoformat()
+        }
+        mock_common_module.get_capacity.return_value = (0, 10)
+        mock_common_module.get_tasks.return_value = []
+        mock_common_module.load_project_repos.return_value = {}
+
+        spec.loader.exec_module(check_module)
+        check_module.main()
+
+        # Should proceed with scan, not skip due to timestamp
+        mock_common_module.output_result.assert_called_once()
+        call_args = mock_common_module.output_result.call_args[0]
+        assert call_args[0] == "skip"
+        assert "ago" not in call_args[1]  # Should proceed past timestamp check
+
+    def test_handles_invalid_timestamp_format(self, mock_common_module):
+        """Proceeds with scan when timestamp format is invalid."""
+        mock_common_module.load_state.return_value = {
+            "last_merge_check_timestamp": "invalid-timestamp"
+        }
+        mock_common_module.get_capacity.return_value = (0, 10)
+        mock_common_module.get_tasks.return_value = []
+        mock_common_module.load_project_repos.return_value = {}
+
+        spec.loader.exec_module(check_module)
+        check_module.main()
+
+        # Should proceed with scan despite invalid timestamp
+        mock_common_module.output_result.assert_called_once()
+        call_args = mock_common_module.output_result.call_args[0]
+        assert call_args[0] == "skip"
+
+    def test_saves_timestamp_after_scan(self, mock_common_module):
+        """Saves ISO timestamp after successful scan."""
+        from datetime import timezone
+
+        mock_common_module.load_state.return_value = {}
+        mock_common_module.get_capacity.return_value = (0, 10)
+        mock_common_module.get_tasks.return_value = []
+        mock_common_module.load_project_repos.return_value = {
+            "test-repo": {"upstream": "https://github.com/RedHatInsights/test-repo"}
+        }
+        mock_common_module.upstream_repo.return_value = (
+            "RedHatInsights/test-repo",
+            "github",
+        )
+
+        # Mock gh response with no violations
+        def mock_subprocess_run(cmd, **kwargs):
+            result = Mock()
+            result.returncode = 0
+            result.stdout = "[]"
+            return result
+
+        spec.loader.exec_module(check_module)
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            check_module.main()
+
+        # Verify timestamp was saved
+        mock_common_module.save_state.assert_called_once()
+        saved_state = mock_common_module.save_state.call_args[0][0]
+        assert "last_merge_check_timestamp" in saved_state
+        # Verify it's a valid ISO format timestamp
+        datetime.fromisoformat(saved_state["last_merge_check_timestamp"])
 
     def test_skips_at_capacity(self, mock_common_module):
         """Skips scan when at capacity."""

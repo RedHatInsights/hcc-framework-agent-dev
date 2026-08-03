@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan repos for test anti-patterns - runs once daily (KEDA scheduled)."""
+"""Scan repos for test anti-patterns (KEDA scheduled)."""
 
 import subprocess
 import yaml
@@ -328,18 +328,20 @@ def main():
     last_scan_timestamp_str = state.get("last_anti_pattern_timestamp")
     now = datetime.now(timezone.utc)
 
-    # Calculate time since last scan
+    # Parse once, reuse for guard check
+    last_scan_timestamp = None
     if last_scan_timestamp_str:
         try:
             last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
-            time_since_scan = now - last_scan_timestamp
-
-            if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
-                logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)")
-                output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago")
-                return
         except (ValueError, TypeError) as e:
             logger.warning(f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan.")
+
+    if last_scan_timestamp:
+        time_since_scan = now - last_scan_timestamp
+        if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
+            logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)")
+            output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago")
+            return
     else:
         logger.info("No previous scan timestamp found - first run")
 

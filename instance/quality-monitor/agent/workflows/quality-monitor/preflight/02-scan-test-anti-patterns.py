@@ -25,9 +25,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Timeout and limit constants
+TIMEOUT_API_LIST = 10  # GitHub API tree listing
 MAX_TEST_FILES_PER_REPO = 20  # Max test files to analyze per repo
 MAX_CONCURRENT_SCANS = 5  # Max test scan tasks to process at once
 DEFAULT_MAX_REPOS_PER_SCAN = 3  # Default repos to scan per run
+
+# Scheduling constants
+SCAN_INTERVAL_HOURS = 24  # Expected KEDA trigger interval
+SCAN_BUFFER_HOURS = 1  # Buffer for scheduler drift
+MIN_SCAN_GAP_SECONDS = (SCAN_INTERVAL_HOURS - SCAN_BUFFER_HOURS) * 3600
 
 
 def load_test_config() -> Optional[Dict[str, Any]]:
@@ -292,7 +298,7 @@ def list_repo_files_via_api(org_repo: str, branch: str = "main") -> Optional[Lis
             ],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=TIMEOUT_API_LIST,
         )
 
         if result.returncode != 0:
@@ -310,7 +316,7 @@ def list_repo_files_via_api(org_repo: str, branch: str = "main") -> Optional[Lis
         return files
 
     except subprocess.TimeoutExpired:
-        logger.warning(f"Timeout listing files for {org_repo} after 10s")
+        logger.warning(f"Timeout listing files for {org_repo} after {TIMEOUT_API_LIST}s")
         return None
 
 
@@ -327,8 +333,7 @@ def main():
             last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
             time_since_scan = now - last_scan_timestamp
 
-            # Skip if scanned within last 23 hours (allow 1 hour buffer for scheduler drift)
-            if time_since_scan.total_seconds() < (23 * 3600):
+            if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
                 logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / 3600:.1f}h ago)")
                 output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / 3600:.1f}h ago")
                 return

@@ -450,8 +450,8 @@ class TestMainFunction:
         call_args = mock_common_module.output_result.call_args[0]
         assert call_args[0] == "skip"
 
-    def test_filters_by_24h_window(self, mock_common_module):
-        """Only processes PRs merged in last 24 hours."""
+    def test_filters_by_scan_window(self, mock_common_module):
+        """Only processes PRs merged since last scan (or default window on first run)."""
         from datetime import timezone
 
         mock_common_module.load_state.return_value = {}
@@ -515,7 +515,7 @@ class TestMainFunction:
         with patch("subprocess.run", side_effect=mock_subprocess_run):
             check_module.main()
 
-        # Should only check the recent PR (within 24h window)
+        # Should only check the recent PR (within default scan window)
         assert call_count == 1
 
 
@@ -616,7 +616,7 @@ class TestSeverityAssessment:
 
         call_args = mock_common_module.output_result.call_args[0]
         # CANCELLED checks are now tolerated, so should skip
-        assert "No merged PRs with failed checks" in call_args[1]
+        assert "No merged PRs with failed checks since" in call_args[1]
 
 
 if __name__ == "__main__":

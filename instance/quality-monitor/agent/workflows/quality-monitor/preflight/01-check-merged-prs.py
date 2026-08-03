@@ -29,6 +29,11 @@ TIMEOUT_PR_LIST = 30  # List merged PRs
 MAX_PRS_PER_REPO = 50  # Limit PRs fetched per repo
 MAX_CONCURRENT_VIOLATIONS = 5  # Max violations to process at once
 
+# Scheduling constants
+SCAN_INTERVAL_HOURS = 24  # Expected KEDA trigger interval
+SCAN_BUFFER_HOURS = 1  # Buffer for scheduler drift
+MIN_SCAN_GAP_SECONDS = (SCAN_INTERVAL_HOURS - SCAN_BUFFER_HOURS) * 3600
+
 
 def parse_merged_at(merged_at_str: Optional[str]) -> Optional[datetime]:
     """Safely parse GitHub mergedAt timestamp.
@@ -147,8 +152,7 @@ def main():
             last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
             time_since_scan = now - last_scan_timestamp
 
-            # Skip if scanned within last 23 hours (allow 1 hour buffer for scheduler drift)
-            if time_since_scan.total_seconds() < (23 * 3600):
+            if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
                 logger.info(f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / 3600:.1f}h ago)")
                 output_result("skip", f"Recently scanned {time_since_scan.total_seconds() / 3600:.1f}h ago")
                 return
@@ -179,7 +183,14 @@ def main():
 
     repos = load_project_repos()
     violations: Dict[str, List[Dict[str, Any]]] = {}
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    if last_scan_timestamp_str:
+        try:
+            since = datetime.fromisoformat(last_scan_timestamp_str)
+        except (ValueError, TypeError):
+            since = now - timedelta(hours=SCAN_INTERVAL_HOURS)
+    else:
+        since = now - timedelta(hours=SCAN_INTERVAL_HOURS)
 
     logger.info(
         f"Checking {len(repos)} repositories for merge violations since {since}"
@@ -224,7 +235,7 @@ def main():
                 if merged_at and merged_at > since:
                     recent_prs.append(pr)
 
-            logger.info(f"{upstream}: {len(recent_prs)} PRs merged in last 24h")
+            logger.info(f"{upstream}: {len(recent_prs)} PRs merged since {since}")
 
             # Check each PR
             repo_violations = []
@@ -250,8 +261,8 @@ def main():
     save_state({"last_merge_check_timestamp": now.isoformat()})
 
     if not violations:
-        logger.info("No merged PRs with failed checks in last 24h")
-        output_result("skip", "No merged PRs with failed checks in last 24h")
+        logger.info(f"No merged PRs with failed checks since {since}")
+        output_result("skip", f"No merged PRs with failed checks since {since}")
         return
 
     total_violations = sum(len(v) for v in violations.values())

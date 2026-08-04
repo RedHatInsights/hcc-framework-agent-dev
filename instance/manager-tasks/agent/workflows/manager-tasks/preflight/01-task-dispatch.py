@@ -13,14 +13,23 @@ Cycle frequency is handled by 00-cycle-sleep.py (separate concern).
 """
 
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from common import get_tasks, output_result
 from gh_pr_status import has_new_feedback, enrich_gh
 
 
+MERGE_HOUR_UTC = 10  # 10am UTC = 12pm Prague (CEST)
+
+
 UPSTREAM_REPO = "RedHatInsights/weekly-status"
 BRANCH_PATTERN = "hcc-team-weekly-report"
+
+
+def _is_merge_time():
+    """Check if current UTC time is at or past the merge hour (11am UTC / 1pm Prague)."""
+    now_utc = datetime.now(timezone.utc)
+    return now_utc.hour >= MERGE_HOUR_UTC
 
 
 def _friday_of_week(d=None):
@@ -33,7 +42,7 @@ def _friday_of_week(d=None):
       - Sunday  → the previous Friday (that week is already done)
 
     Examples:
-      Tuesday  2026-07-22 → Friday 2026-07-25
+      Monday   2026-07-21 → Friday 2026-07-25
       Friday   2026-07-25 → Friday 2026-07-25
       Sunday   2026-07-27 → Friday 2026-07-25
     """
@@ -67,9 +76,9 @@ def check_weekly_report():
     It uses the memory server's task state and the built-in
     gh_pr_status module to determine which phase we're in:
 
-    1. No task exists yet (Tuesday)       → generate reports, open PR
+    1. No task exists yet (Monday)        → generate reports, open PR
     2. Task has PR with new feedback      → address the review comments
-    3. Wednesday, no blocking reviews     → merge the PR
+    3. Tuesday 1pm Prague, no blockers    → merge the PR
     4. PR already merged / task done      → nothing to do, skip
 
     Returns a tuple of (should_run, task_name, content):
@@ -78,15 +87,9 @@ def check_weekly_report():
       - content:    prompt data for the session (or skip reason)
     """
     today = date.today()
-    weekday = today.weekday()  # Monday=0, Tuesday=1, Wednesday=2
+    weekday = today.weekday()  # Monday=0, Tuesday=1
 
-    # TODO: Remove Monday (0) and Friday (4) once testing is complete
-    if weekday not in (
-        0,
-        1,
-        2,
-        4,
-    ):  # Monday (testing), Tuesday, Wednesday, Friday (testing)
+    if weekday not in (0, 1):  # Monday (generate), Tuesday (feedback/merge)
         return False, None, "Not a scheduled day"
 
     friday = _friday_of_week(today)
@@ -96,9 +99,9 @@ def check_weekly_report():
     tasks = get_tasks()
     task = _find_task_for_week(tasks, friday_str)
 
-    # No task exists yet — generate phase
+    # No task exists yet — generate phase (Monday)
     if task is None:
-        if weekday in (0, 1, 4):  # Monday (testing), Tuesday, Friday (testing)
+        if weekday == 0:
             content = (
                 f"## TASK: weekly-report-generate\n\n"
                 f"Generate HCC weekly status reports for week ending {friday_str}.\n\n"
@@ -110,7 +113,7 @@ def check_weekly_report():
                 f"- **Friday date**: {friday_str}\n"
             )
             return True, "weekly-report-generate", content
-        return False, None, f"Wednesday but no task found for {friday_str}"
+        return False, None, f"Tuesday but no task found for {friday_str}"
 
     # Task exists — check its status
     status = task.get("status", "")
@@ -159,8 +162,8 @@ def check_weekly_report():
             )
             return True, "weekly-report-feedback", content
 
-        # Wednesday, no blocking reviews — merge
-        if weekday == 2:
+        # Tuesday after 1pm Prague, no blocking reviews — merge
+        if weekday == 1 and _is_merge_time():
             pr_info = enriched["prs"][0] if enriched["prs"] else {}
             content = (
                 f"## TASK: weekly-report-merge\n\n"
@@ -179,12 +182,7 @@ def check_weekly_report():
 TASKS = [
     {
         "name": "weekly-report",
-        "days": [
-            0,
-            1,
-            2,
-            4,
-        ],  # Monday (testing), Tuesday, Wednesday, Friday (testing)  # TODO: Remove 0,4 once testing is complete
+        "days": [0, 1],  # Monday (generate), Tuesday (feedback/merge)
         "check": check_weekly_report,
     },
     # Future tasks:

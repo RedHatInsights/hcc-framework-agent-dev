@@ -5,7 +5,7 @@ Runs before the task dispatch script. Writes data/cycle-sleep.json
 with a sleep duration based on the current Prague time slot. This
 keeps frequency scheduling in deterministic Python — no AI tokens.
 
-KEDA provides broad pod on/off windows (e.g. Tue 9am-11pm).
+KEDA provides broad pod on/off windows (e.g. Mon-Tue 9am-11pm).
 This script provides fine-grained pacing within those windows.
 """
 
@@ -20,31 +20,24 @@ CYCLE_SLEEP_FILE = SCRIPT_DIR / "data" / "cycle-sleep.json"
 
 # Sleep duration by time slot (all times UTC).
 #
-# Tuesday:
+# Monday (generate):
 #   7am–11am  → 2h     (PR just opened, few reviewers yet)
 #   11am–1pm  → 1h     (quiet period, hourly check)
 #   1pm–4pm   → 20min  (peak review time)
 #   4pm–9pm   → 2h     (US East coast catching up, low volume)
 #
-# Wednesday:
+# Tuesday (feedback + merge at 1pm Prague / ~11am UTC):
 #   7am–11am  → 2h     (morning, light feedback)
-#   11am–2pm  → 20min  (final push before merge)
+#   11am–2pm  → 20min  (merge window — 1pm Prague = 11am UTC summer)
 #   2pm+      → 24h    (merge done, wait for KEDA to scale down)
 SCHEDULE = {
-    # TODO: Remove Monday and Friday once testing is complete
-    0: [  # Monday (testing only)
-        (7, 21, 1200),
-    ],
-    4: [  # Friday (testing only)
-        (7, 21, 1200),
-    ],
-    1: [  # Tuesday
+    0: [  # Monday (generate)
         (7, 11, 7200),
         (11, 13, 3600),
         (13, 16, 1200),
         (16, 21, 7200),
     ],
-    2: [  # Wednesday
+    1: [  # Tuesday (feedback + merge)
         (7, 11, 7200),
         (11, 14, 1200),
         (14, 21, 86400),

@@ -9,8 +9,8 @@
 
 - **Repo**: `RedHatInsights/weekly-status`
 - **Scope**: `hcc-team all` (all HCC sub-teams)
-- **Schedule**: Tuesday generate+PR, Wednesday auto-merge
-- **Merge policy**: auto-merge Wednesday unless `CHANGES_REQUESTED` review exists
+- **Schedule**: Monday generate+PR, Tuesday 1pm Prague auto-merge
+- **Merge policy**: auto-merge Tuesday 1pm Prague unless `CHANGES_REQUESTED` review exists
 
 ## Environment Constraints
 

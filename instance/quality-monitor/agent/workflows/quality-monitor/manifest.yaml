@@ -15,7 +15,6 @@ requires:
     - mcp-atlassian
   env_vars:
     - BOT_INSTANCE_ID
-    - GH_TOKEN
   optional_env_vars:
     - SLACK_WEBHOOK_URL
 

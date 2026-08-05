@@ -1,4 +1,10 @@
 {
+  "_config": {
+    "jira": {
+      "default_project": "RHCLOUD",
+      "repo_mapping": {}
+    }
+  },
   "insights-chrome": {
     "url": "https://github.com/platex-rehor-bot/insights-chrome.git",
     "upstream": "https://github.com/RedHatInsights/insights-chrome.git"

@@ -1,0 +1,60 @@
+# Test File Configuration
+#
+# Focused on Playwright TypeScript tests only.
+#
+# Auto-detection: Looks for playwright.config.ts/js in repo root
+# Default patterns: **/*.spec.ts (Playwright convention)
+
+# Repo-specific overrides (optional)
+# Use this to customize patterns for specific repos
+repos:
+  # Example custom config:
+  # insights-chrome:
+  #   patterns:
+  #     - "e2e/**/*.spec.ts"
+  #     - "tests/e2e/**/*.spec.ts"
+  #   exclude:
+  #     - "**/*.skip.spec.ts"
+
+# Default configuration for Playwright
+defaults:
+  framework_detection:
+    playwright:
+      # Files that indicate Playwright is used
+      indicators:
+        - "playwright.config.ts"
+        - "playwright.config.js"
+        - "playwright.config.mjs"
+      
+      # Test file patterns (TypeScript only)
+      patterns:
+        - "**/*.spec.ts"
+        - "e2e/**/*.test.ts"
+        - "tests/**/*.spec.ts"
+
+  # Fallback if no playwright config found
+  # (TypeScript test files only)
+  generic_patterns:
+    - "**/*.spec.ts"
+    - "**/*.test.ts"
+
+  # Always exclude these directories
+  global_excludes:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/.playwright/**"
+    - "**/playwright-report/**"
+    - "**/test-results/**"
+
+# Scanning limits
+limits:
+  max_files_per_repo: 20
+  max_file_size_bytes: 102400  # 100KB
+  max_repos_per_scan: 3
+
+# Repositories to scan (whitelist)
+# Only these repos will be scanned for anti-patterns
+scan_only_repos:
+  - insights-chrome
+  - landing-page-frontend

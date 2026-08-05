@@ -1,0 +1,6 @@
+{
+  "hp-weekly-status": {
+    "url": "https://github.com/platex-rehor-bot/hp-weekly-status.git",
+    "upstream": "https://github.com/RedHatInsights/weekly-status.git"
+  }
+}

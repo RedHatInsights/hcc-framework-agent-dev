@@ -7,7 +7,7 @@ parameters:
   value: ${NAMESPACE}
 - name: BOT_IMAGE
   value: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
-- name: BOT_IMAGE_TAG
+- name: IMAGE_TAG
   required: true
 - name: BOT_LABEL
   value: hcc-ai-bot
@@ -35,6 +35,16 @@ parameters:
   required: true
 - name: SLACK_WEBHOOK_URL
   value: ""
+- name: SLACK_NOTIFY_MODE
+  value: ""
+- name: SLACK_DIGEST_HOUR
+  value: ""
+- name: KEDA_TIMEZONE
+  value: "Europe/Prague"
+- name: KEDA_CRON_START
+  value: "0 9 * * 1-5"
+- name: KEDA_CRON_END
+  value: "0 23 * * 1-5"
 objects:
 
 # ============================================================================
@@ -75,7 +85,7 @@ objects:
       spec:
         containers:
         - name: bot
-          image: ${BOT_IMAGE}:${BOT_IMAGE_TAG}
+          image: ${BOT_IMAGE}:${IMAGE_TAG}
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
@@ -151,6 +161,10 @@ objects:
           # Slack notifications
           - name: SLACK_WEBHOOK_URL
             value: ${SLACK_WEBHOOK_URL}
+          - name: SLACK_NOTIFY_MODE
+            value: ${SLACK_NOTIFY_MODE}
+          - name: SLACK_DIGEST_HOUR
+            value: ${SLACK_DIGEST_HOUR}
           # Proxy — shared pod deployed by platform-frontend-ai-dev
           - name: PROXY_HOST
             value: devbot-proxy
@@ -186,11 +200,11 @@ objects:
           resources:
             requests:
               cpu: "1"
-              memory: 2Gi
+              memory: 4Gi
               ephemeral-storage: 4Gi
             limits:
               cpu: "4"
-              memory: 4Gi
+              memory: 6Gi
               ephemeral-storage: 8Gi
 
 # --- NetworkPolicy: Bot can only reach proxy + memory-server ---
@@ -210,7 +224,7 @@ objects:
     - to:
       - podSelector:
           matchLabels:
-            app.kubernetes.io/name: proxy
+            app.kubernetes.io/name: devbot-proxy
       ports:
       - port: 3128
         protocol: TCP
@@ -238,3 +252,28 @@ objects:
         protocol: UDP
       - port: 5353
         protocol: TCP
+
+# --- KEDA Cron Scaler ---
+# Override KEDA_TIMEZONE, KEDA_CRON_START, KEDA_CRON_END per deployment
+# target in the app-interface SaaS file.
+- apiVersion: keda.sh/v1alpha1
+  kind: ScaledObject
+  metadata:
+    name: ${BOT_NAME}-cron-scaler
+    labels:
+      app.kubernetes.io/name: ${BOT_NAME}
+      app.kubernetes.io/part-of: devbot
+  spec:
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: ${BOT_NAME}
+    minReplicaCount: 0
+    maxReplicaCount: 1
+    triggers:
+    - type: cron
+      metadata:
+        timezone: ${KEDA_TIMEZONE}
+        start: ${KEDA_CRON_START}
+        end: ${KEDA_CRON_END}
+        desiredReplicas: "1"

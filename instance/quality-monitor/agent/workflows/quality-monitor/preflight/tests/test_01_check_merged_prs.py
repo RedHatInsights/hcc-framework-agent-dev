@@ -422,7 +422,6 @@ class TestScanOnlyReposFilter:
 
     def test_filters_repos_to_whitelist(self, mock_common_module):
         """Only scans repos listed in scan_only_repos."""
-        mock_common_module.load_state.return_value = {}
         mock_common_module.get_capacity.return_value = (0, 10)
         mock_common_module.get_tasks.return_value = []
         mock_common_module.load_project_repos.return_value = {
@@ -473,7 +472,6 @@ class TestScanOnlyReposFilter:
 
     def test_scans_all_repos_when_no_config(self, mock_common_module):
         """Scans all repos when test-config.yaml is missing."""
-        mock_common_module.load_state.return_value = {}
         mock_common_module.get_capacity.return_value = (0, 10)
         mock_common_module.get_tasks.return_value = []
         mock_common_module.load_project_repos.return_value = {
@@ -511,7 +509,6 @@ class TestScanOnlyReposFilter:
 
     def test_skips_when_whitelist_matches_no_repos(self, mock_common_module):
         """Skips with message when scan_only_repos matches nothing."""
-        mock_common_module.load_state.return_value = {}
         mock_common_module.get_capacity.return_value = (0, 10)
         mock_common_module.get_tasks.return_value = []
         mock_common_module.load_project_repos.return_value = {

@@ -2,7 +2,6 @@
 """Scan repos for test anti-patterns (KEDA scheduled)."""
 
 import subprocess
-import yaml
 import logging
 import re
 from pathlib import Path
@@ -14,6 +13,7 @@ from common import (
     get_capacity,
     get_tasks,
 )
+from config import load_config
 
 # Configure logging
 logging.basicConfig(
@@ -26,25 +26,6 @@ TIMEOUT_API_LIST = 10  # GitHub API tree listing
 MAX_TEST_FILES_PER_REPO = 20  # Max test files to analyze per repo
 MAX_CONCURRENT_SCANS = 5  # Max test scan tasks to process at once
 DEFAULT_MAX_REPOS_PER_SCAN = 3  # Default repos to scan per run
-
-
-def load_test_config() -> Optional[Dict[str, Any]]:
-    """Load test file configuration.
-
-    Returns:
-        Config dict or None if file doesn't exist
-    """
-    config_path = Path(__file__).parent.parent / "test-config.yaml"
-    if not config_path.exists():
-        logger.warning(f"Test config not found at {config_path}")
-        return None
-
-    try:
-        with open(config_path) as f:
-            return yaml.safe_load(f)
-    except yaml.YAMLError as e:
-        logger.error(f"Failed to parse test config: {e}")
-        return None
 
 
 def detect_framework(repo_path: Path, config: Optional[Dict]) -> Optional[str]:
@@ -338,7 +319,7 @@ def main():
         return
 
     # Load test config
-    test_config = load_test_config()
+    test_config = load_config()
     max_repos = (
         test_config.get("limits", {}).get(
             "max_repos_per_scan", DEFAULT_MAX_REPOS_PER_SCAN
@@ -352,7 +333,7 @@ def main():
 
     # Filter repos if scan_only_repos is configured
     scan_only = test_config.get("scan_only_repos") if test_config else None
-    if scan_only:
+    if scan_only is not None:
         logger.info(f"Filtering to scan_only_repos: {scan_only}")
         repos = {k: v for k, v in repos.items() if k in scan_only}
         if not repos:

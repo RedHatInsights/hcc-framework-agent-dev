@@ -215,5 +215,13 @@
   "project-kessel/kessel-sdk-browser": {
     "url": "https://github.com/platex-rehor-bot/kessel-sdk-browser.git",
     "upstream": "https://github.com/project-kessel/kessel-sdk-browser.git"
+  },
+  "ai-web-clients": {
+    "url": "https://github.com/platex-rehor-bot/ai-web-clients.git",
+    "upstream": "https://github.com/RedHatInsights/ai-web-clients.git"
+  },
+  "frontend-experience-docs": {
+    "url": "https://github.com/platex-rehor-bot/frontend-experience-docs.git",
+    "upstream": "https://github.com/RedHatInsights/frontend-experience-docs.git"
   }
 }

@@ -42,6 +42,40 @@ spec = importlib.util.spec_from_file_location(
 check_module = importlib.util.module_from_spec(spec)
 
 
+def make_gh_mock(list_response="[]", view_response=None):
+    """Return a mock subprocess.run that dispatches gh pr list/view calls."""
+
+    def mock_subprocess_run(cmd, **kwargs):
+        result = Mock()
+        result.returncode = 0
+
+        if "list" in cmd:
+            result.stdout = (
+                json.dumps(list_response)
+                if not isinstance(list_response, str)
+                else list_response
+            )
+        elif "view" in cmd:
+            result.stdout = (
+                json.dumps(view_response) if view_response is not None else "{}"
+            )
+
+        return result
+
+    return mock_subprocess_run
+
+
+def run_main(gh_mock, scan_config=None):
+    """Load the check module and run main() with patched subprocess and scan config."""
+    spec.loader.exec_module(check_module)
+
+    with (
+        patch("subprocess.run", side_effect=gh_mock),
+        patch.object(check_module, "load_config", return_value=scan_config),
+    ):
+        check_module.main()
+
+
 @pytest.fixture
 def sample_pr_data():
     """Sample PR data matching gh CLI output format."""
@@ -302,28 +336,7 @@ class TestMainFunction:
             ]
         }
 
-        def mock_subprocess_run(cmd, **kwargs):
-            result = Mock()
-            result.returncode = 0
-
-            if "list" in cmd:
-                result.stdout = json.dumps(pr_list_response)
-            elif "view" in cmd:
-                result.stdout = json.dumps(pr_view_response)
-
-            return result
-
-        spec.loader.exec_module(check_module)
-
-        with (
-            patch("subprocess.run", side_effect=mock_subprocess_run),
-<<<<<<< HEAD
-            patch.object(check_module, "load_config", return_value=None),
-=======
-            patch.object(check_module, "load_scan_config", return_value=None),
->>>>>>> 5e6d3fe (format: linter fixes)
-        ):
-            check_module.main()
+        run_main(make_gh_mock(pr_list_response, pr_view_response))
 
         # Verify output was called with violations
         mock_common_module.output_result.assert_called_once()
@@ -394,35 +407,25 @@ class TestMainFunction:
             ]
         }
 
-        call_count = 0
+        view_call_count = 0
 
         def mock_subprocess_run(cmd, **kwargs):
-            nonlocal call_count
+            nonlocal view_call_count
             result = Mock()
             result.returncode = 0
 
             if "list" in cmd:
                 result.stdout = json.dumps(pr_list_response)
             elif "view" in cmd:
-                call_count += 1
+                view_call_count += 1
                 result.stdout = json.dumps(violations_response)
 
             return result
 
-        spec.loader.exec_module(check_module)
-
-        with (
-            patch("subprocess.run", side_effect=mock_subprocess_run),
-<<<<<<< HEAD
-            patch.object(check_module, "load_config", return_value=None),
-=======
-            patch.object(check_module, "load_scan_config", return_value=None),
->>>>>>> 5e6d3fe (format: linter fixes)
-        ):
-            check_module.main()
+        run_main(mock_subprocess_run)
 
         # Should only check the recent PR (within default scan window)
-        assert call_count == 1
+        assert view_call_count == 1
 
 
 class TestScanOnlyReposFilter:
@@ -466,17 +469,7 @@ class TestScanOnlyReposFilter:
             "scan_only_repos": ["insights-chrome", "landing-page-frontend"],
         }
 
-        spec.loader.exec_module(check_module)
-
-        with (
-            patch("subprocess.run", side_effect=mock_subprocess_run),
-<<<<<<< HEAD
-            patch.object(check_module, "load_config", return_value=scan_config),
-=======
-            patch.object(check_module, "load_scan_config", return_value=scan_config),
->>>>>>> 5e6d3fe (format: linter fixes)
-        ):
-            check_module.main()
+        run_main(mock_subprocess_run, scan_config)
 
         assert "RedHatInsights/insights-chrome" in scanned_repos
         assert "RedHatInsights/landing-page-frontend" in scanned_repos
@@ -509,17 +502,7 @@ class TestScanOnlyReposFilter:
                 result.stdout = "[]"
             return result
 
-        spec.loader.exec_module(check_module)
-
-        with (
-            patch("subprocess.run", side_effect=mock_subprocess_run),
-<<<<<<< HEAD
-            patch.object(check_module, "load_config", return_value=None),
-=======
-            patch.object(check_module, "load_scan_config", return_value=None),
->>>>>>> 5e6d3fe (format: linter fixes)
-        ):
-            check_module.main()
+        run_main(mock_subprocess_run)
 
         assert len(scanned_repos) == 2
 
@@ -576,28 +559,7 @@ class TestSeverityAssessment:
             ]
         }
 
-        def mock_subprocess_run(cmd, **kwargs):
-            result = Mock()
-            result.returncode = 0
-
-            if "list" in cmd:
-                result.stdout = json.dumps(pr_list_response)
-            elif "view" in cmd:
-                result.stdout = json.dumps(pr_view_response)
-
-            return result
-
-        spec.loader.exec_module(check_module)
-
-        with (
-            patch("subprocess.run", side_effect=mock_subprocess_run),
-<<<<<<< HEAD
-            patch.object(check_module, "load_config", return_value=None),
-=======
-            patch.object(check_module, "load_scan_config", return_value=None),
->>>>>>> 5e6d3fe (format: linter fixes)
-        ):
-            check_module.main()
+        run_main(make_gh_mock(pr_list_response, pr_view_response))
 
         call_args = mock_common_module.output_result.call_args[0]
         # Check for lowercase "high:" in new compact format
@@ -630,28 +592,7 @@ class TestSeverityAssessment:
             ]
         }
 
-        def mock_subprocess_run(cmd, **kwargs):
-            result = Mock()
-            result.returncode = 0
-
-            if "list" in cmd:
-                result.stdout = json.dumps(pr_list_response)
-            elif "view" in cmd:
-                result.stdout = json.dumps(pr_view_response)
-
-            return result
-
-        spec.loader.exec_module(check_module)
-
-        with (
-            patch("subprocess.run", side_effect=mock_subprocess_run),
-<<<<<<< HEAD
-            patch.object(check_module, "load_config", return_value=None),
-=======
-            patch.object(check_module, "load_scan_config", return_value=None),
->>>>>>> 5e6d3fe (format: linter fixes)
-        ):
-            check_module.main()
+        run_main(make_gh_mock(pr_list_response, pr_view_response))
 
         call_args = mock_common_module.output_result.call_args[0]
         # CANCELLED checks are now tolerated, so should skip

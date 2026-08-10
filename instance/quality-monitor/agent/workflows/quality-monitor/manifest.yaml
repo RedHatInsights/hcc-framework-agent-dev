@@ -3,6 +3,7 @@ type: workflow
 description: Monitor code quality - detect merge violations and test anti-patterns
 
 preflight:
+  - 00-cycle-sleep.py
   - 01-check-merged-prs.py
   - 02-scan-test-anti-patterns.py
 

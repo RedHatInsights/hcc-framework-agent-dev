@@ -5,7 +5,6 @@ import subprocess
 import yaml
 import logging
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -14,8 +13,6 @@ from common import (
     output_result,
     get_capacity,
     get_tasks,
-    load_state,
-    save_state,
 )
 
 # Configure logging
@@ -29,12 +26,6 @@ TIMEOUT_API_LIST = 10  # GitHub API tree listing
 MAX_TEST_FILES_PER_REPO = 20  # Max test files to analyze per repo
 MAX_CONCURRENT_SCANS = 5  # Max test scan tasks to process at once
 DEFAULT_MAX_REPOS_PER_SCAN = 3  # Default repos to scan per run
-
-# Scheduling constants
-SECONDS_PER_HOUR = 3600
-SCAN_INTERVAL_HOURS = 24  # Expected KEDA trigger interval
-SCAN_BUFFER_HOURS = 1  # Buffer for scheduler drift
-MIN_SCAN_GAP_SECONDS = (SCAN_INTERVAL_HOURS - SCAN_BUFFER_HOURS) * SECONDS_PER_HOUR
 
 
 def load_test_config() -> Optional[Dict[str, Any]]:
@@ -325,34 +316,6 @@ def list_repo_files_via_api(org_repo: str, branch: str = "main") -> Optional[Lis
 
 def main():
     """Main entry point for test anti-pattern scanner."""
-    # Align with KEDA scheduler - track timestamp instead of date
-    state = load_state()
-    last_scan_timestamp_str = state.get("last_anti_pattern_timestamp")
-    now = datetime.now(timezone.utc)
-
-    # Parse once, reuse for guard check
-    last_scan_timestamp = None
-    if last_scan_timestamp_str:
-        try:
-            last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
-        except (ValueError, TypeError) as e:
-            logger.warning(
-                f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan."
-            )
-
-    if last_scan_timestamp:
-        time_since_scan = now - last_scan_timestamp
-        if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
-            logger.info(
-                f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)"
-            )
-            output_result(
-                "skip",
-                f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago",
-            )
-            return
-    else:
-        logger.info("No previous scan timestamp found - first run")
 
     # Check capacity
     active_n, max_n = get_capacity()
@@ -445,9 +408,6 @@ def main():
                 "framework": framework,
             }
 
-    # Mark scan timestamp (aligns with KEDA scheduler)
-    save_state({"last_anti_pattern_timestamp": now.isoformat()})
-
     if not repos_with_tests:
         logger.info(f"Scanned {min(max_repos, len(repos))} repos, no test files found")
         output_result(
@@ -460,9 +420,6 @@ def main():
         f"Found {total_files} test files across {len(repos_with_tests)} repositories"
     )
 
-    # Format for AI - compact format without redundant instructions
-    # (Workflow CLAUDE.md already contains the instructions)
-    total_files = sum(len(data["files"]) for data in repos_with_tests.values())
     content = f"# Test Files for Anti-Pattern Analysis ({total_files} files)\n\n"
 
     for repo, data in repos_with_tests.items():

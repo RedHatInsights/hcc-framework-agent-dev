@@ -315,8 +315,10 @@ class TestMainFunction:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run), \
-             patch.object(check_module, "load_scan_config", return_value=None):
+        with (
+            patch("subprocess.run", side_effect=mock_subprocess_run),
+            patch.object(check_module, "load_scan_config", return_value=None),
+        ):
             check_module.main()
 
         # Verify output was called with violations
@@ -405,8 +407,10 @@ class TestMainFunction:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run), \
-             patch.object(check_module, "load_scan_config", return_value=None):
+        with (
+            patch("subprocess.run", side_effect=mock_subprocess_run),
+            patch.object(check_module, "load_scan_config", return_value=None),
+        ):
             check_module.main()
 
         # Should only check the recent PR (within default scan window)
@@ -422,9 +426,15 @@ class TestScanOnlyReposFilter:
         mock_common_module.get_capacity.return_value = (0, 10)
         mock_common_module.get_tasks.return_value = []
         mock_common_module.load_project_repos.return_value = {
-            "insights-chrome": {"upstream": "https://github.com/RedHatInsights/insights-chrome"},
-            "insights-inventory-frontend": {"upstream": "https://github.com/RedHatInsights/insights-inventory-frontend"},
-            "landing-page-frontend": {"upstream": "https://github.com/RedHatInsights/landing-page-frontend"},
+            "insights-chrome": {
+                "upstream": "https://github.com/RedHatInsights/insights-chrome"
+            },
+            "insights-inventory-frontend": {
+                "upstream": "https://github.com/RedHatInsights/insights-inventory-frontend"
+            },
+            "landing-page-frontend": {
+                "upstream": "https://github.com/RedHatInsights/landing-page-frontend"
+            },
         }
 
         def upstream_side_effect(repo_name):
@@ -451,8 +461,10 @@ class TestScanOnlyReposFilter:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run), \
-             patch.object(check_module, "load_scan_config", return_value=scan_config):
+        with (
+            patch("subprocess.run", side_effect=mock_subprocess_run),
+            patch.object(check_module, "load_scan_config", return_value=scan_config),
+        ):
             check_module.main()
 
         assert "RedHatInsights/insights-chrome" in scanned_repos
@@ -489,8 +501,10 @@ class TestScanOnlyReposFilter:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run), \
-             patch.object(check_module, "load_scan_config", return_value=None):
+        with (
+            patch("subprocess.run", side_effect=mock_subprocess_run),
+            patch.object(check_module, "load_scan_config", return_value=None),
+        ):
             check_module.main()
 
         assert len(scanned_repos) == 2
@@ -562,8 +576,10 @@ class TestSeverityAssessment:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run), \
-             patch.object(check_module, "load_scan_config", return_value=None):
+        with (
+            patch("subprocess.run", side_effect=mock_subprocess_run),
+            patch.object(check_module, "load_scan_config", return_value=None),
+        ):
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]
@@ -610,8 +626,10 @@ class TestSeverityAssessment:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run), \
-             patch.object(check_module, "load_scan_config", return_value=None):
+        with (
+            patch("subprocess.run", side_effect=mock_subprocess_run),
+            patch.object(check_module, "load_scan_config", return_value=None),
+        ):
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]

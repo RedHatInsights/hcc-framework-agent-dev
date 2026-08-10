@@ -297,7 +297,6 @@ def list_repo_files_via_api(org_repo: str, branch: str = "main") -> Optional[Lis
 
 def main():
     """Main entry point for test anti-pattern scanner."""
-
     # Check capacity
     active_n, max_n = get_capacity()
     if active_n >= max_n:

@@ -317,7 +317,11 @@ class TestMainFunction:
 
         with (
             patch("subprocess.run", side_effect=mock_subprocess_run),
+<<<<<<< HEAD
             patch.object(check_module, "load_config", return_value=None),
+=======
+            patch.object(check_module, "load_scan_config", return_value=None),
+>>>>>>> 5e6d3fe (format: linter fixes)
         ):
             check_module.main()
 
@@ -409,7 +413,11 @@ class TestMainFunction:
 
         with (
             patch("subprocess.run", side_effect=mock_subprocess_run),
+<<<<<<< HEAD
             patch.object(check_module, "load_config", return_value=None),
+=======
+            patch.object(check_module, "load_scan_config", return_value=None),
+>>>>>>> 5e6d3fe (format: linter fixes)
         ):
             check_module.main()
 
@@ -462,7 +470,11 @@ class TestScanOnlyReposFilter:
 
         with (
             patch("subprocess.run", side_effect=mock_subprocess_run),
+<<<<<<< HEAD
             patch.object(check_module, "load_config", return_value=scan_config),
+=======
+            patch.object(check_module, "load_scan_config", return_value=scan_config),
+>>>>>>> 5e6d3fe (format: linter fixes)
         ):
             check_module.main()
 
@@ -501,7 +513,11 @@ class TestScanOnlyReposFilter:
 
         with (
             patch("subprocess.run", side_effect=mock_subprocess_run),
+<<<<<<< HEAD
             patch.object(check_module, "load_config", return_value=None),
+=======
+            patch.object(check_module, "load_scan_config", return_value=None),
+>>>>>>> 5e6d3fe (format: linter fixes)
         ):
             check_module.main()
 
@@ -575,7 +591,11 @@ class TestSeverityAssessment:
 
         with (
             patch("subprocess.run", side_effect=mock_subprocess_run),
+<<<<<<< HEAD
             patch.object(check_module, "load_config", return_value=None),
+=======
+            patch.object(check_module, "load_scan_config", return_value=None),
+>>>>>>> 5e6d3fe (format: linter fixes)
         ):
             check_module.main()
 
@@ -625,7 +645,11 @@ class TestSeverityAssessment:
 
         with (
             patch("subprocess.run", side_effect=mock_subprocess_run),
+<<<<<<< HEAD
             patch.object(check_module, "load_config", return_value=None),
+=======
+            patch.object(check_module, "load_scan_config", return_value=None),
+>>>>>>> 5e6d3fe (format: linter fixes)
         ):
             check_module.main()
 

@@ -13,8 +13,6 @@ from common import (
     output_result,
     get_capacity,
     get_tasks,
-    load_state,
-    save_state,
 )
 
 # Configure logging
@@ -29,11 +27,7 @@ TIMEOUT_PR_LIST = 30  # List merged PRs
 MAX_PRS_PER_REPO = 50  # Limit PRs fetched per repo
 MAX_CONCURRENT_VIOLATIONS = 5  # Max violations to process at once
 
-# Scheduling constants
-SECONDS_PER_HOUR = 3600
-SCAN_INTERVAL_HOURS = 24  # Expected KEDA trigger interval
-SCAN_BUFFER_HOURS = 1  # Buffer for scheduler drift
-MIN_SCAN_GAP_SECONDS = (SCAN_INTERVAL_HOURS - SCAN_BUFFER_HOURS) * SECONDS_PER_HOUR
+SCAN_INTERVAL_HOURS = 24  # Lookback window for PR merges
 
 
 def parse_merged_at(merged_at_str: Optional[str]) -> Optional[datetime]:
@@ -142,34 +136,7 @@ def check_pr_violations(
 
 def main():
     """Main entry point for merge violation checker."""
-    # Align with KEDA scheduler - track timestamp instead of date
-    state = load_state()
-    last_scan_timestamp_str = state.get("last_merge_check_timestamp")
     now = datetime.now(timezone.utc)
-
-    # Parse once, reuse for both the guard and the lookup window
-    last_scan_timestamp = None
-    if last_scan_timestamp_str:
-        try:
-            last_scan_timestamp = datetime.fromisoformat(last_scan_timestamp_str)
-        except (ValueError, TypeError) as e:
-            logger.warning(
-                f"Invalid timestamp format: {last_scan_timestamp_str} - {e}. Proceeding with scan."
-            )
-
-    if last_scan_timestamp:
-        time_since_scan = now - last_scan_timestamp
-        if time_since_scan.total_seconds() < MIN_SCAN_GAP_SECONDS:
-            logger.info(
-                f"Recently scanned at {last_scan_timestamp_str} ({time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago)"
-            )
-            output_result(
-                "skip",
-                f"Recently scanned {time_since_scan.total_seconds() / SECONDS_PER_HOUR:.1f}h ago",
-            )
-            return
-    else:
-        logger.info("No previous scan timestamp found - first run")
 
     # Check capacity
     active_n, max_n = get_capacity()
@@ -194,11 +161,7 @@ def main():
     repos = load_project_repos()
     violations: Dict[str, List[Dict[str, Any]]] = {}
 
-    since = (
-        last_scan_timestamp
-        if last_scan_timestamp
-        else now - timedelta(hours=SCAN_INTERVAL_HOURS)
-    )
+    since = now - timedelta(hours=SCAN_INTERVAL_HOURS)
 
     logger.info(
         f"Checking {len(repos)} repositories for merge violations since {since}"
@@ -265,49 +228,29 @@ def main():
             logger.error(f"Invalid JSON from gh CLI for {upstream}: {e}")
             continue
 
-    # Mark scan timestamp (aligns with KEDA scheduler)
-    save_state({"last_merge_check_timestamp": now.isoformat()})
-
     if not violations:
         logger.info(f"No merged PRs with failed checks since {since}")
         output_result("skip", f"No merged PRs with failed checks since {since}")
         return
 
-    total_violations = sum(len(v) for v in violations.values())
-    logger.info(
-        f"Found {total_violations} violations across {len(violations)} repositories"
-    )
-
-    # All violations are HIGH severity (FAILURE only)
-    by_severity = {"HIGH": []}
+    all_violations = []
     for repo, prs in violations.items():
         for pr in prs:
-            by_severity["HIGH"].append({**pr, "repo": repo})
+            all_violations.append({**pr, "repo": repo})
 
-    # Format for AI - compact YAML-style format
-    total = sum(len(v) for v in by_severity.values())
-    content = f"# Merge Violations ({total} total)\n\n"
+    logger.info(
+        f"Found {len(all_violations)} violations across {len(violations)} repositories"
+    )
 
-    for severity in ["HIGH"]:  # Only HIGH severity now
-        items = by_severity.get(severity, [])
-        if not items:
-            continue
-
-        content += f"{severity.lower()}:\n"
-        for item in items:
-            # Extract date only (not full timestamp)
-            merged_date = item["merged_at"][:10] if item["merged_at"] else "unknown"
-
-            # Compact check list
-            check_list = ", ".join(c["name"] for c in item["failed_checks"])
-
-            # Single line per violation
-            content += (
-                f"  - {item['repo']} #{item['number']}: {item['title']} "
-                f"(@{item['author']}, {merged_date})\n"
-                f"    failed: {check_list}\n"
-            )
-        content += "\n"
+    content = f"# Merge Violations ({len(all_violations)} total)\n\nhigh:\n"
+    for item in all_violations:
+        merged_date = item["merged_at"][:10] if item["merged_at"] else "unknown"
+        check_list = ", ".join(c["name"] for c in item["failed_checks"])
+        content += (
+            f"  - {item['repo']} #{item['number']}: {item['title']} "
+            f"(@{item['author']}, {merged_date})\n"
+            f"    failed: {check_list}\n"
+        )
 
     output_result("start", content)
 

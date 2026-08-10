@@ -637,5 +637,26 @@ class TestSeverityAssessment:
         assert "No merged PRs with failed checks since" in call_args[1]
 
 
+class TestLoadConfig:
+    """Tests for shared config loader."""
+
+    def test_returns_none_on_missing_file(self, tmp_path):
+        """Returns None when config file doesn't exist."""
+        import config
+
+        with patch.object(config, "CONFIG_PATH", tmp_path / "nonexistent.yaml"):
+            assert config.load_config() is None
+
+    def test_returns_none_on_invalid_yaml(self, tmp_path):
+        """Returns None when config file contains invalid YAML."""
+        import config
+
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text(":\n  - :\n  bad: [unterminated")
+
+        with patch.object(config, "CONFIG_PATH", bad_file):
+            assert config.load_config() is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

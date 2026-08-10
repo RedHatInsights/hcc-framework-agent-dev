@@ -57,10 +57,10 @@ Use to identify:
 ## Schedule
 
 Daily 9 AM ET via KEDA:
-- All repos for merge violations (24h window)
-- Up to 10 repos for anti-patterns (rotates)
+- `scan_only_repos` whitelist for merge violations (24h window)
+- `scan_only_repos` whitelist for anti-patterns (rotates, max 3 per scan)
 
-Full coverage: ~1 week for 50+ repos.
+Both checks share the `scan_only_repos` list in `test-config.yaml`.
 
 ## Custom Patterns
 

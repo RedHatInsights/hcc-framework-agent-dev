@@ -315,7 +315,8 @@ class TestMainFunction:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run), \
+             patch.object(check_module, "load_scan_config", return_value=None):
             check_module.main()
 
         # Verify output was called with violations
@@ -404,11 +405,118 @@ class TestMainFunction:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run), \
+             patch.object(check_module, "load_scan_config", return_value=None):
             check_module.main()
 
         # Should only check the recent PR (within default scan window)
         assert call_count == 1
+
+
+class TestScanOnlyReposFilter:
+    """Tests for scan_only_repos whitelist filtering."""
+
+    def test_filters_repos_to_whitelist(self, mock_common_module):
+        """Only scans repos listed in scan_only_repos."""
+        mock_common_module.load_state.return_value = {}
+        mock_common_module.get_capacity.return_value = (0, 10)
+        mock_common_module.get_tasks.return_value = []
+        mock_common_module.load_project_repos.return_value = {
+            "insights-chrome": {"upstream": "https://github.com/RedHatInsights/insights-chrome"},
+            "insights-inventory-frontend": {"upstream": "https://github.com/RedHatInsights/insights-inventory-frontend"},
+            "landing-page-frontend": {"upstream": "https://github.com/RedHatInsights/landing-page-frontend"},
+        }
+
+        def upstream_side_effect(repo_name):
+            return (f"RedHatInsights/{repo_name}", "github")
+
+        mock_common_module.upstream_repo.side_effect = upstream_side_effect
+
+        scanned_repos = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = Mock()
+            result.returncode = 0
+            if "list" in cmd:
+                repo_flag_idx = cmd.index("--repo") + 1
+                scanned_repos.append(cmd[repo_flag_idx])
+                result.stdout = "[]"
+            else:
+                result.stdout = "[]"
+            return result
+
+        scan_config = {
+            "scan_only_repos": ["insights-chrome", "landing-page-frontend"],
+        }
+
+        spec.loader.exec_module(check_module)
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run), \
+             patch.object(check_module, "load_scan_config", return_value=scan_config):
+            check_module.main()
+
+        assert "RedHatInsights/insights-chrome" in scanned_repos
+        assert "RedHatInsights/landing-page-frontend" in scanned_repos
+        assert "RedHatInsights/insights-inventory-frontend" not in scanned_repos
+
+    def test_scans_all_repos_when_no_config(self, mock_common_module):
+        """Scans all repos when test-config.yaml is missing."""
+        mock_common_module.load_state.return_value = {}
+        mock_common_module.get_capacity.return_value = (0, 10)
+        mock_common_module.get_tasks.return_value = []
+        mock_common_module.load_project_repos.return_value = {
+            "repo-a": {"upstream": "https://github.com/Org/repo-a"},
+            "repo-b": {"upstream": "https://github.com/Org/repo-b"},
+        }
+
+        def upstream_side_effect(repo_name):
+            return (f"Org/{repo_name}", "github")
+
+        mock_common_module.upstream_repo.side_effect = upstream_side_effect
+
+        scanned_repos = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = Mock()
+            result.returncode = 0
+            if "list" in cmd:
+                repo_flag_idx = cmd.index("--repo") + 1
+                scanned_repos.append(cmd[repo_flag_idx])
+                result.stdout = "[]"
+            else:
+                result.stdout = "[]"
+            return result
+
+        spec.loader.exec_module(check_module)
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run), \
+             patch.object(check_module, "load_scan_config", return_value=None):
+            check_module.main()
+
+        assert len(scanned_repos) == 2
+
+    def test_skips_when_whitelist_matches_no_repos(self, mock_common_module):
+        """Skips with message when scan_only_repos matches nothing."""
+        mock_common_module.load_state.return_value = {}
+        mock_common_module.get_capacity.return_value = (0, 10)
+        mock_common_module.get_tasks.return_value = []
+        mock_common_module.load_project_repos.return_value = {
+            "repo-a": {"upstream": "https://github.com/Org/repo-a"},
+        }
+
+        scan_config = {
+            "scan_only_repos": ["nonexistent-repo"],
+        }
+
+        spec.loader.exec_module(check_module)
+
+        with patch.object(check_module, "load_scan_config", return_value=scan_config):
+            check_module.main()
+
+        mock_common_module.output_result.assert_called_once()
+        call_args = mock_common_module.output_result.call_args[0]
+        assert call_args[0] == "skip"
+        assert "scan_only_repos" in call_args[1]
 
 
 class TestSeverityAssessment:
@@ -454,7 +562,8 @@ class TestSeverityAssessment:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run), \
+             patch.object(check_module, "load_scan_config", return_value=None):
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]
@@ -501,7 +610,8 @@ class TestSeverityAssessment:
 
         spec.loader.exec_module(check_module)
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run):
+        with patch("subprocess.run", side_effect=mock_subprocess_run), \
+             patch.object(check_module, "load_scan_config", return_value=None):
             check_module.main()
 
         call_args = mock_common_module.output_result.call_args[0]

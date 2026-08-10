@@ -4,7 +4,9 @@
 import subprocess
 import json
 import logging
+import yaml
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from common import (
@@ -28,6 +30,21 @@ MAX_PRS_PER_REPO = 50  # Limit PRs fetched per repo
 MAX_CONCURRENT_VIOLATIONS = 5  # Max violations to process at once
 
 SCAN_INTERVAL_HOURS = 24  # Lookback window for PR merges
+
+
+def load_scan_config() -> Optional[Dict[str, Any]]:
+    """Load scan configuration with repo whitelist."""
+    config_path = Path(__file__).parent.parent / "test-config.yaml"
+    if not config_path.exists():
+        logger.warning(f"Scan config not found at {config_path}")
+        return None
+
+    try:
+        with open(config_path) as f:
+            return yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        logger.error(f"Failed to parse scan config: {e}")
+        return None
 
 
 def parse_merged_at(merged_at_str: Optional[str]) -> Optional[datetime]:
@@ -159,6 +176,17 @@ def main():
         return
 
     repos = load_project_repos()
+
+    scan_config = load_scan_config()
+    scan_only = scan_config.get("scan_only_repos") if scan_config else None
+    if scan_only:
+        logger.info(f"Filtering to scan_only_repos: {scan_only}")
+        repos = {k: v for k, v in repos.items() if k in scan_only}
+        if not repos:
+            logger.warning("No repos match scan_only_repos filter")
+            output_result("skip", "No repositories configured in scan_only_repos")
+            return
+
     violations: Dict[str, List[Dict[str, Any]]] = {}
 
     since = now - timedelta(hours=SCAN_INTERVAL_HOURS)

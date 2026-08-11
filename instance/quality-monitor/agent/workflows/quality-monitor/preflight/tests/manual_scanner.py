@@ -9,12 +9,15 @@ import sys
 from pathlib import Path
 
 # Import scanner functions
-sys.path.insert(0, str(Path(__file__).parent))
+preflight_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(preflight_dir))
 
 # Import after path setup
 from importlib import util
 
-spec = util.spec_from_file_location("scanner", "02-scan-test-anti-patterns.py")
+spec = util.spec_from_file_location(
+    "scanner", preflight_dir / "02-scan-test-anti-patterns.py"
+)
 scanner = util.module_from_spec(spec)
 
 # Mock common module before loading scanner

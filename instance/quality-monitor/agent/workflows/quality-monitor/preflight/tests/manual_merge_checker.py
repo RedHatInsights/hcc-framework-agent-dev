@@ -13,12 +13,13 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 # Import checker functions
-sys.path.insert(0, str(Path(__file__).parent))
+preflight_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(preflight_dir))
 
 # Import after path setup
 from importlib import util
 
-spec = util.spec_from_file_location("checker", "01-check-merged-prs.py")
+spec = util.spec_from_file_location("checker", preflight_dir / "01-check-merged-prs.py")
 checker = util.module_from_spec(spec)
 
 # Mock common module before loading checker

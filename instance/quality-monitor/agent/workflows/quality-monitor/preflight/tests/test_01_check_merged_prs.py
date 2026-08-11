@@ -604,14 +604,14 @@ class TestLoadConfig:
 
     def test_returns_none_on_missing_file(self, tmp_path):
         """Returns None when config file doesn't exist."""
-        import config
+        from lib import config
 
         with patch.object(config, "CONFIG_PATH", tmp_path / "nonexistent.yaml"):
             assert config.load_config() is None
 
     def test_returns_none_on_invalid_yaml(self, tmp_path):
         """Returns None when config file contains invalid YAML."""
-        import config
+        from lib import config
 
         bad_file = tmp_path / "bad.yaml"
         bad_file.write_text(":\n  - :\n  bad: [unterminated")

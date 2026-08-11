@@ -10,8 +10,9 @@ import json
 import sys
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
-CYCLE_SLEEP_FILE = SCRIPT_DIR / "data" / "cycle-sleep.json"
+# The runner sets cwd to its own SCRIPT_DIR (dev-bot root),
+# which is where it reads cycle-sleep.json from.
+CYCLE_SLEEP_FILE = Path("data") / "cycle-sleep.json"
 
 SLEEP_SECONDS = 86400  # 24 hours
 

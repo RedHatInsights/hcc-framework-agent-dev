@@ -56,14 +56,14 @@ class TestGoodRepoIntegration:
 
     def test_detects_playwright_framework(self, good_repo):
         """Should detect Playwright via config file."""
-        config = scan_module.load_test_config()
+        config = scan_module.load_config()
         framework = scan_module.detect_framework(good_repo, config)
 
         assert framework == "playwright"
 
     def test_finds_test_files(self, good_repo):
         """Should find .spec.ts test files."""
-        config = scan_module.load_test_config()
+        config = scan_module.load_config()
 
         # Generate file list from fixture directory (simulates API response)
         file_list = [
@@ -103,14 +103,14 @@ class TestBadRepoIntegration:
 
     def test_detects_playwright_framework(self, bad_repo):
         """Should detect Playwright via config file."""
-        config = scan_module.load_test_config()
+        config = scan_module.load_config()
         framework = scan_module.detect_framework(bad_repo, config)
 
         assert framework == "playwright"
 
     def test_finds_test_files(self, bad_repo):
         """Should find .spec.ts test files."""
-        config = scan_module.load_test_config()
+        config = scan_module.load_config()
 
         # Generate file list from fixture directory (simulates API response)
         file_list = [
@@ -230,7 +230,7 @@ class TestScannerEndToEnd:
 
     def test_good_repo_would_not_trigger_workflow(self, good_repo):
         """Scanner should not flag good repo as needing attention."""
-        config = scan_module.load_test_config()
+        config = scan_module.load_config()
 
         # Detect framework
         framework = scan_module.detect_framework(good_repo, config)
@@ -256,7 +256,7 @@ class TestScannerEndToEnd:
 
     def test_bad_repo_would_trigger_workflow(self, bad_repo):
         """Scanner should flag bad repo for AI analysis."""
-        config = scan_module.load_test_config()
+        config = scan_module.load_config()
 
         # Detect framework
         framework = scan_module.detect_framework(bad_repo, config)

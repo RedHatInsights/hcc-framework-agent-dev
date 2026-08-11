@@ -323,7 +323,7 @@ class TestFindTestFilesFromList:
 
 
 class TestLoadTestConfig:
-    """Tests for load_test_config function."""
+    """Tests for load_config function."""
 
     def test_loads_valid_yaml(self, tmp_path, sample_test_config):
         """Loads valid YAML configuration."""
@@ -335,7 +335,7 @@ class TestLoadTestConfig:
         spec.loader.exec_module(scan_module)
 
         with patch.object(Path, "__truediv__", return_value=config_path):
-            result = scan_module.load_test_config()
+            result = scan_module.load_config()
 
         # Note: This test may need adjustment based on actual path resolution
         # For now, testing the function exists and handles YAML
@@ -346,7 +346,7 @@ class TestLoadTestConfig:
 
         # Mock Path to return non-existent file
         with patch("pathlib.Path.exists", return_value=False):
-            result = scan_module.load_test_config()
+            result = scan_module.load_config()
             # Function should handle missing file gracefully
 
 

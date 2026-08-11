@@ -5,6 +5,7 @@ import subprocess
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from common import (
@@ -14,6 +15,7 @@ from common import (
     get_capacity,
     get_tasks,
 )
+from config import load_config
 
 # Configure logging
 logging.basicConfig(
@@ -159,6 +161,17 @@ def main():
         return
 
     repos = load_project_repos()
+
+    scan_config = load_config()
+    scan_only = scan_config.get("scan_only_repos") if scan_config else None
+    if scan_only is not None:
+        logger.info(f"Filtering to scan_only_repos: {scan_only}")
+        repos = {k: v for k, v in repos.items() if k in scan_only}
+        if not repos:
+            logger.warning("No repos match scan_only_repos filter")
+            output_result("skip", "No repositories configured in scan_only_repos")
+            return
+
     violations: Dict[str, List[Dict[str, Any]]] = {}
 
     since = now - timedelta(hours=SCAN_INTERVAL_HOURS)

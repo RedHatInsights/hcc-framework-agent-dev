@@ -16,7 +16,7 @@ from common import (
     get_capacity,
     get_tasks,
 )
-from config import load_config
+from lib.config import load_config
 
 # Configure logging
 logging.basicConfig(

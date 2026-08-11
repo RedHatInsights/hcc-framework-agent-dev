@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent.parent / "test-config.yaml"
+CONFIG_PATH = Path(__file__).parent.parent.parent / "test-config.yaml"
 
 
 def load_config() -> Optional[Dict[str, Any]]:

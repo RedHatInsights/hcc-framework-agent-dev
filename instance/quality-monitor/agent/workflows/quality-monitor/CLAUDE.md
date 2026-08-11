@@ -14,33 +14,13 @@ ONE finding per cycle (highest priority first).
 
 ### Priority Order
 
-1. **P0**: Handle feedback on existing quality tasks (GitHub issue comments, Slack replies)
-2. **P1**: Merge violations (FAILURE only)
-3. **P2**: High-severity test anti-patterns
-4. **P3**: Medium/low-severity test anti-patterns
+1. **P1**: Merge violations (FAILURE only)
+2. **P2**: High-severity test anti-patterns
+3. **P3**: Medium/low-severity test anti-patterns
 
 ### Input Data
 
 Preflight scripts provide findings. No re-fetch during session.
-
-## P0: Handle Feedback
-
-Check existing quality tasks for:
-- JIRA ticket comments requesting action
-- Slack thread replies
-- Task status updates needed
-- JIRA ticket transitions (In Progress → Done)
-
-ONE feedback item per cycle.
-
-Use `jira_search` to find quality monitor tickets:
-```python
-# Find quality monitor tickets that need attention
-jira_search(
-    jql="project = RHCLOUD AND labels = quality AND status != Done",
-    fields=["summary", "status", "comments", "updated"],
-)
-```
 
 ## P1: Process Merge Violations
 

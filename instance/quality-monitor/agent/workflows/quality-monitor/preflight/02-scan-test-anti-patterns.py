@@ -311,8 +311,8 @@ def main():
     today_scans = [
         t
         for t in tasks
-        if t.get("external_key", "").startswith(f"test-scan:")
-        and today in t.get("external_key", "")
+        if t.get("external_key", "").startswith("test-scan:")
+        and t.get("external_key", "").endswith(f":{today}")
     ]
     if today_scans:
         logger.info(

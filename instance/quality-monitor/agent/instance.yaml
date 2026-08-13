@@ -1,5 +1,5 @@
 workflow: ./workflows/quality-monitor
-source: scheduled
+source: keda_scheduled
 envs:
   - slack
   - node

@@ -1,5 +1,5 @@
 workflow: ./workflows/quality-monitor
-source: run_to_completion
+source: run_and_exit
 envs:
   - slack
   - node

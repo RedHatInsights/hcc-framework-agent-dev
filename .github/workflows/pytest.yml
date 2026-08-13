@@ -1,0 +1,50 @@
+name: Python Tests
+
+on:
+  pull_request:
+    paths:
+      - '**.py'
+      - '**/pyproject.toml'
+      - '**/uv.lock'
+      - '.github/workflows/pytest.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - '**.py'
+      - '**/pyproject.toml'
+      - '**/uv.lock'
+      - '.github/workflows/pytest.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Test against Python 3.11+ since that's the minimum required
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Run quality-monitor preflight tests
+        working-directory: instance/quality-monitor/agent/workflows/quality-monitor/preflight
+        run: |
+          uv sync --extra dev
+          uv run pytest --cov=. --cov-report=term --cov-report=xml -v
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v7
+        with:
+          file: instance/quality-monitor/agent/workflows/quality-monitor/preflight/coverage.xml
+          flags: quality-monitor
+          fail_ci_if_error: false

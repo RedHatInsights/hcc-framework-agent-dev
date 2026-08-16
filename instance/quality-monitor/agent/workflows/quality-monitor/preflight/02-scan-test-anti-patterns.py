@@ -4,6 +4,7 @@
 import subprocess
 import logging
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -306,6 +307,20 @@ def main():
 
     # Check for existing test scan tasks
     tasks = get_tasks()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_scans = [
+        t
+        for t in tasks
+        if t.get("external_key", "").startswith("test-scan:")
+        and t.get("external_key", "").endswith(f":{today}")
+    ]
+    if today_scans:
+        logger.info(
+            f"Already scanned today ({len(today_scans)} task(s) with date {today})"
+        )
+        output_result("skip", f"Already scanned today ({len(today_scans)} repos)")
+        return
+
     active_scans = [
         t
         for t in tasks

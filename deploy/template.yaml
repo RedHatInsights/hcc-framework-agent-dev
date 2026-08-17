@@ -93,6 +93,10 @@ objects:
               type: RuntimeDefault
             capabilities:
               drop: ["ALL"]
+          ports:
+          - containerPort: 9091
+            name: metrics
+            protocol: TCP
           env:
           - name: BOT_LABEL
             value: ${BOT_LABEL}
@@ -280,3 +284,25 @@ objects:
         start: ${KEDA_CRON_START}
         end: ${KEDA_CRON_END}
         desiredReplicas: "1"
+
+# --- NetworkPolicy: Allow Prometheus to scrape bot metrics ---
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: ${BOT_NAME}-metrics-ingress
+    labels:
+      app.kubernetes.io/part-of: devbot
+  spec:
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: ${BOT_NAME}
+    policyTypes:
+    - Ingress
+    ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: openshift-customer-monitoring
+      ports:
+      - port: 9091
+        protocol: TCP

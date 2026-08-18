@@ -190,6 +190,10 @@
     "url": "https://github.com/platex-rehor-bot/landing-page-frontend.git",
     "upstream": "https://github.com/RedHatInsights/landing-page-frontend.git"
   },
+  "lightwell-frontend": {
+    "url": "https://github.com/platex-rehor-bot/content-sources-frontend.git",
+    "upstream": "https://github.com/content-services/content-sources-frontend.git"
+  },
   "sources-ui": {
     "url": "https://github.com/platex-rehor-bot/sources-ui.git",
     "upstream": "https://github.com/RedHatInsights/sources-ui.git"

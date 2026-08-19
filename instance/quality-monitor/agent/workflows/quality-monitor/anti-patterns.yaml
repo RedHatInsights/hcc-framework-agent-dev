@@ -142,45 +142,86 @@ anti_patterns:
           throw new Error(`UI action failed: ${e.message}`);
         });
 
+  missing_auth_package:
+    severity: high
+    message: "Test imports from @playwright/test instead of @redhat-cloud-services/playwright-test-auth"
+    recommendation: "Import test (and optionally expect) from @redhat-cloud-services/playwright-test-auth to get pre-configured auth fixtures. Tests that need unauthenticated access (e.g., public pages) are a valid exception."
+    eslint_rules:
+      - name: "no-restricted-imports"
+        config: |
+          // Add to .eslintrc.js rules:
+          "no-restricted-imports": [
+            "error",
+            {
+              "paths": [
+                {
+                  "name": "@playwright/test",
+                  "importNames": ["test"],
+                  "message": "Import { test } from '@redhat-cloud-services/playwright-test-auth' instead for pre-configured authentication."
+                }
+              ]
+            }
+          ]
+        note: "Catches direct import of test from @playwright/test. Allows importing expect or other utilities."
+    examples:
+      bad: |
+        // ❌ BAD: Importing test from @playwright/test bypasses auth fixtures
+        import { test, expect } from '@playwright/test';
+
+        test('should access dashboard', async ({ page }) => {
+          await page.goto('/dashboard');
+          // No authentication - test may fail or hit login redirect
+        });
+
+      good: |
+        // ✅ GOOD: Import from playwright-test-auth for pre-configured auth
+        import { test, expect } from '@redhat-cloud-services/playwright-test-auth';
+
+        test('should access dashboard', async ({ page }) => {
+          // Already authenticated via fixture
+          await page.goto('/dashboard');
+          await expect(page.locator('.welcome-message')).toBeVisible();
+        });
+
   # === MEDIUM SEVERITY ===
   # These hide test failures or create maintenance burden
 
   duplicated_auth_code:
     severity: medium
-    message: "Custom login/auth code detected - consider using playwright-test-auth"
-    recommendation: "Use playwright-test-auth package for consistent authentication unless testing multi-user scenarios"
+    message: "Custom login/auth code detected in test - consider using playwright-test-auth fixtures"
+    recommendation: "Use playwright-test-auth fixtures for authentication instead of manual login steps. Valid exception: tests that specifically verify login/auth functionality or multi-user scenarios."
     eslint_rules: null
     note: "No ESLint rule for this pattern. This is a code duplication concern best addressed through refactoring to shared fixtures."
     examples:
       bad: |
-        // ❌ BAD: Duplicated auth code in every test
+        // ❌ BAD: Manual login steps in a test that isn't testing auth
+        import { test } from '@redhat-cloud-services/playwright-test-auth';
+
         test('should access dashboard', async ({ page }) => {
           await page.goto('/login');
           await page.fill('#username', 'testuser');
           await page.fill('#password', 'testpass');
           await page.click('button[type="submit"]');
           await page.waitForURL('/dashboard');
-          // actual test...
+          // actual test starts here...
         });
 
       good: |
-        // ✅ GOOD: Use playwright-test-auth
+        // ✅ GOOD: Auth handled by fixture, test focuses on behavior
         import { test } from '@redhat-cloud-services/playwright-test-auth';
 
         test('should access dashboard', async ({ page }) => {
-          // Already authenticated via fixture
           await page.goto('/dashboard');
           // actual test...
         });
 
-        // ✅ ALSO GOOD: Custom auth when testing multi-user scenarios
-        test('user permissions', async ({ page }) => {
-          // Valid: Testing as different users in same session
-          await loginAsAdmin(page);
-          await verifyAdminAccess();
-
-          await loginAsUser(page);
-          await verifyUserAccess();
+        // ✅ ALSO GOOD: Custom auth when testing login flow itself
+        test('should show error with invalid credentials', async ({ page }) => {
+          await page.goto('/login');
+          await page.fill('#username', 'invalid');
+          await page.fill('#password', 'wrong');
+          await page.click('button[type="submit"]');
+          await expect(page.locator('.error-message')).toBeVisible();
         });
 
   disabled_tests:

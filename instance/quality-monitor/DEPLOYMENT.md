@@ -8,7 +8,7 @@ The quality-monitor instance uses the existing `deploy/template.yaml` with speci
 
 - PR merged to `RedHatInsights/hcc-framework-agent-dev:master`
 - Konflux has rebuilt the image
-- Image SHA available from Quay: `quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev`
+- Image digest (`sha256:...`) available from Quay/Konflux: `quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev`
 - Access to app-interface repository
 
 ## App-Interface Configuration
@@ -33,7 +33,7 @@ resourceTemplates:
           $ref: /services/insights/platform-frontend-ai-dev/namespaces/stage.hcmais01ue1.yml
         ref: <COMMIT_SHA>  # SHA from merged PR
         parameters:
-          IMAGE_TAG: <COMMIT_SHA>
+          IMAGE_DIGEST: <sha256:IMAGE_DIGEST_FROM_KONFLUX>
           BOT_IMAGE: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
           BOT_NAME: devbot-quality
           BOT_INSTANCE_ID: quality-monitor
@@ -63,7 +63,7 @@ resourceTemplates:
 - `GCP_PROJECT_ID` - Same as framework-config
 - `GCP_REGION: global`
 - `VERTEX_ALLOWED_MODELS` - Same as other instances
-- `IMAGE_TAG` - Commit SHA from merged PR
+- `IMAGE_DIGEST` - `sha256:...` digest emitted by the Konflux push pipeline (`tasks.build-image-index.results.IMAGE_DIGEST`) for the merged PR's build
 - `ref` - Same commit SHA
 
 **Optional:**
@@ -197,7 +197,7 @@ oc get events --field-selector involvedObject.name=devbot-quality
 ```
 
 **Common issues:**
-- Wrong `IMAGE_TAG` - verify SHA matches Quay
+- Wrong `IMAGE_DIGEST` - verify digest matches Quay
 - Missing secrets - verify `devbot-secrets` exists
 - Network policy blocking - check `devbot-quality-egress`
 
@@ -277,7 +277,7 @@ To update configuration after deployment:
 1. **Update instance files** - Edit `instance/quality-monitor/` files
 2. **Commit to main** - PR and merge
 3. **Wait for Konflux** - New image built
-4. **Update app-interface** - Change `IMAGE_TAG` and `ref` to new SHA
+4. **Update app-interface** - Change `IMAGE_DIGEST` and `ref` to the new build's digest/SHA
 5. **Verify** - Wait for next scheduled run
 
 **For urgent config changes:**

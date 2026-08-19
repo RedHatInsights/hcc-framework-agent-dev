@@ -7,7 +7,7 @@ parameters:
   value: ${NAMESPACE}
 - name: BOT_IMAGE
   value: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
-- name: IMAGE_TAG
+- name: IMAGE_DIGEST
   required: true
 - name: BOT_LABEL
   value: hcc-ai-bot
@@ -85,7 +85,7 @@ objects:
       spec:
         containers:
         - name: bot
-          image: ${BOT_IMAGE}:${IMAGE_TAG}
+          image: ${BOT_IMAGE}@${IMAGE_DIGEST}
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false

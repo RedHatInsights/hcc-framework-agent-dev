@@ -58,3 +58,4 @@ limits:
 scan_only_repos:
   - insights-chrome
   - landing-page-frontend
+  - virtual-assistant-frontend

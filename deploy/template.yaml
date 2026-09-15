@@ -5,6 +5,10 @@ metadata:
 parameters:
 - name: NAMESPACE
   value: ${NAMESPACE}
+- name: REGISTRY_IMG
+  value: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+- name: IMAGE_DIGEST
+  value: ""
 - name: BOT_IMAGE
   value: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
 - name: IMAGE_TAG

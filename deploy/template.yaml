@@ -83,6 +83,11 @@ objects:
           app.kubernetes.io/component: bot
           app.kubernetes.io/part-of: devbot
       spec:
+        # Image chowns /home/botuser to botuser:0 with g+rwX (see Dockerfile) —
+        # match that group here so the emptyDir is writable regardless of the
+        # arbitrary UID the cluster's SCC assigns to the containers.
+        securityContext:
+          fsGroup: 0
         # Seeds the writable /home/botuser emptyDir with the image's baked-in
         # content (venv, bot code, config) before the rootfs goes read-only —
         # a plain emptyDir mount would otherwise hide that content.
@@ -98,6 +103,15 @@ objects:
               type: RuntimeDefault
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 128Mi
+              ephemeral-storage: 100Mi
+            limits:
+              cpu: "500m"
+              memory: 256Mi
+              ephemeral-storage: 100Mi
           volumeMounts:
           - name: home
             mountPath: /mnt/home

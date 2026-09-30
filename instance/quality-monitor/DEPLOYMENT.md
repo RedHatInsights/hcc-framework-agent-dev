@@ -4,12 +4,16 @@
 
 The quality-monitor instance uses the existing `deploy/template.yaml` with specific parameters. No Konflux changes needed - just add a new deployment target in app-interface.
 
+`deploy/template.yaml` deploys the bot as an OpenShell `SandboxTemplate` + `SandboxWarmPool` (RHCLOUD-50068), not a plain `Deployment`. KEDA scales the `SandboxWarmPool`.
+
 ## Prerequisites
 
 - PR merged to `RedHatInsights/hcc-framework-agent-dev:master`
 - Konflux has rebuilt the image
 - Image SHA available from Quay: `quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev`
 - Access to app-interface repository
+- OpenShell gateway, agent-sandbox controller, and KEDA already installed in the target namespace (shared platform namespaces have these; standalone namespaces need them installed first)
+- SaaS file `managedResourceTypes` includes `SandboxTemplate.agents.x-k8s.io`, `SandboxWarmPool.agents.x-k8s.io`, `ScaledObject.keda.sh`, and `NetworkPolicy`
 
 ## App-Interface Configuration
 
@@ -53,7 +57,7 @@ resourceTemplates:
 ### 3. Parameter Details
 
 **Required (unique to quality-monitor):**
-- `BOT_NAME: devbot-quality` - Deployment name
+- `BOT_NAME: devbot-quality` - SandboxTemplate/SandboxWarmPool name
 - `BOT_INSTANCE_ID: quality-monitor` - Instance identifier
 - `BOT_CONFIG_PATH: instance/quality-monitor` - Points to config directory
 - `KEDA_CRON_START: "0 9 * * 1-5"` - Daily 9 AM ET, Monday-Friday
@@ -98,24 +102,18 @@ KEDA_CRON_END: "0 10 * * 1-5"
 
 ## Verification Steps
 
-### 1. Check Deployment Created
+### 1. Check SandboxTemplate/SandboxWarmPool Created
 
 ```bash
-oc get deployment devbot-quality -n <namespace>
+oc get sandboxtemplate,sandboxwarmpool devbot-quality -n <namespace>
 ```
 
-Expected output:
-```
-NAME             READY   UP-TO-DATE   AVAILABLE   AGE
-devbot-quality   0/0     0            0           1m
-```
-
-(0/0 is normal - KEDA scales from 0)
+Expected output: `SandboxWarmPool` with `0` replicas (KEDA scales from 0).
 
 ### 2. Verify Configuration
 
 ```bash
-oc get deployment devbot-quality -o yaml | grep -A 5 BOT_CONFIG_PATH
+oc get sandboxtemplate devbot-quality -o yaml | grep -A 5 BOT_CONFIG_PATH
 ```
 
 Should show:
@@ -134,14 +132,15 @@ Verify:
 - `timezone: America/New_York`
 - `start: "0 9 * * 1-5"`
 - `desiredReplicas: "1"`
+- `scaleTargetRef.kind: SandboxWarmPool`
 
 ### 4. Check NetworkPolicy
 
 ```bash
-oc get networkpolicy devbot-quality-egress
+oc get networkpolicy -l app.kubernetes.io/part-of=devbot | grep devbot-quality
 ```
 
-Should exist and allow egress to proxy + memory-server.
+The SandboxTemplate's managed NetworkPolicy should exist and allow egress to proxy + memory-server.
 
 ### 5. Wait for Scheduled Time
 
@@ -152,7 +151,7 @@ At the scheduled time (9 AM ET), verify:
 oc get pods -l app.kubernetes.io/name=devbot-quality
 
 # Check logs
-oc logs -f deployment/devbot-quality
+oc logs -f -l app.kubernetes.io/name=devbot-quality
 ```
 
 ### 6. Check Memory Server
@@ -188,7 +187,7 @@ oc logs -n keda deploy/keda-operator
 
 **Check image pull:**
 ```bash
-oc describe deployment devbot-quality | grep -A 5 Image
+oc describe sandboxtemplate devbot-quality | grep -A 5 Image
 ```
 
 **Check events:**
@@ -199,18 +198,18 @@ oc get events --field-selector involvedObject.name=devbot-quality
 **Common issues:**
 - Wrong `IMAGE_TAG` - verify SHA matches Quay
 - Missing secrets - verify `devbot-secrets` exists
-- Network policy blocking - check `devbot-quality-egress`
+- Network policy blocking - check the SandboxTemplate's managed NetworkPolicy (`oc get networkpolicy -l app.kubernetes.io/part-of=devbot`)
 
 ### No JIRA Tickets Created
 
 **Check logs for JIRA MCP connection:**
 ```bash
-oc logs deployment/devbot-quality | grep -i jira
+oc logs -l app.kubernetes.io/name=devbot-quality | grep -i jira
 ```
 
 **Verify JIRA_MCP_URL:**
 ```bash
-oc get deployment devbot-quality -o yaml | grep JIRA_MCP_URL
+oc get sandboxtemplate devbot-quality -o yaml | grep JIRA_MCP_URL
 ```
 
 Should be: `http://devbot-proxy:8444/mcp`
@@ -225,19 +224,19 @@ oc logs deployment/devbot-proxy | grep 8444
 **Check state persistence:**
 ```bash
 # Logs should show state checks
-oc logs deployment/devbot-quality | grep "Already scanned"
+oc logs -l app.kubernetes.io/name=devbot-quality | grep "Already scanned"
 ```
 
 **Manually trigger (for testing):**
 ```bash
 # Scale to 1 replica outside schedule
-oc scale deployment devbot-quality --replicas=1
+oc patch sandboxwarmpool devbot-quality --type merge -p '{"spec":{"replicas":1}}'
 
 # Check logs
-oc logs -f deployment/devbot-quality
+oc logs -f -l app.kubernetes.io/name=devbot-quality
 
 # Scale back to 0 when done
-oc scale deployment devbot-quality --replicas=0
+oc patch sandboxwarmpool devbot-quality --type merge -p '{"spec":{"replicas":0}}'
 ```
 
 ## Rollback
@@ -246,7 +245,7 @@ If issues occur, scale to 0 and remove from app-interface:
 
 ```bash
 # Immediate stop
-oc scale deployment devbot-quality --replicas=0
+oc patch sandboxwarmpool devbot-quality --type merge -p '{"spec":{"replicas":0}}'
 
 # Remove from app-interface
 # Delete the resourceTemplate entry
@@ -258,7 +257,7 @@ oc scale deployment devbot-quality --replicas=0
 **Check daily runs:**
 ```bash
 # Pod logs from last run
-oc logs deployment/devbot-quality --previous
+oc logs -l app.kubernetes.io/name=devbot-quality --previous
 
 # Check memory server for tasks created
 curl http://devbot-memory-server:8080/api/tasks?instance_id=quality-monitor

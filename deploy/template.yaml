@@ -52,23 +52,32 @@ parameters:
 objects:
 
 # ============================================================================
-# Bot-only deployment for hcc-framework-agent-dev runner instance.
+# OpenShell deployment for hcc-framework-agent-dev runner instance.
+#
+# Bot workloads run as an OpenShell SandboxTemplate + SandboxWarmPool instead
+# of a plain Deployment (RHCLOUD-50068). The agent-sandbox controller enforces
+# the filesystem boundary (read-only rootfs, writable /home/botuser/repos,
+# /home/botuser/data, /tmp) — see OpenShift-Fleet/rehor docs/openshell-deployment.md
+# and presets/core/CLAUDE.md "OpenShell Filesystem Access".
 #
 # Shared infrastructure (proxy, memory-server, secrets) is deployed by
 # the platform-frontend-ai-dev template in the same namespace.
-# This template creates only:
-#   1. Bot Deployment (name controlled by BOT_NAME parameter)
-#   2. NetworkPolicy (egress restricted to proxy + memory-server + DNS)
+# This template creates:
+#   1. SandboxTemplate (pod blueprint + managed NetworkPolicy)
+#   2. SandboxWarmPool  (name controlled by BOT_NAME parameter)
+#   3. ScaledObject     (KEDA cron scaler targeting the SandboxWarmPool)
+#   4. NetworkPolicy    (ingress, allows Prometheus to scrape bot metrics)
 #
 # Prerequisites (deployed by platform-frontend-ai-dev):
 #   - devbot-proxy       (ports 3128, 9090, 8443, 8444, 8446)
 #   - devbot-memory-server (port 8080)
 #   - devbot-secrets     (Vault secret with git identity + credentials)
+#   - OpenShell gateway + agent-sandbox controller + KEDA installed in namespace
 # ============================================================================
 
-# --- Bot Deployment ---
-- apiVersion: apps/v1
-  kind: Deployment
+# --- SandboxTemplate: pod blueprint + managed NetworkPolicy ---
+- apiVersion: extensions.agents.x-k8s.io/v1beta1
+  kind: SandboxTemplate
   metadata:
     name: ${BOT_NAME}
     labels:
@@ -76,11 +85,49 @@ objects:
       app.kubernetes.io/component: bot
       app.kubernetes.io/part-of: devbot
   spec:
-    replicas: ${{BOT_REPLICAS}}
-    selector:
-      matchLabels:
-        app.kubernetes.io/name: ${BOT_NAME}
-    template:
+    networkPolicyManagement: Managed
+    networkPolicy:
+      ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agent-sandbox-system
+          podSelector:
+            matchLabels:
+              app: sandbox-router
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: devbot-proxy
+        ports:
+        - port: 3128
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+        - port: 8443
+          protocol: TCP
+        - port: 8444
+          protocol: TCP
+        - port: 8446
+          protocol: TCP
+      - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: memory-server
+        ports:
+        - port: 8080
+          protocol: TCP
+      - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+        ports:
+        - port: 5353
+          protocol: UDP
+        - port: 5353
+          protocol: TCP
+    podTemplate:
       metadata:
         labels:
           app.kubernetes.io/name: ${BOT_NAME}
@@ -217,52 +264,34 @@ objects:
               cpu: "4"
               memory: 6Gi
               ephemeral-storage: 8Gi
+          volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+          - name: repos
+            mountPath: /home/botuser/repos
+          - name: data
+            mountPath: /home/botuser/data
+        volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: repos
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
 
-# --- NetworkPolicy: Bot can only reach proxy + memory-server ---
-- apiVersion: networking.k8s.io/v1
-  kind: NetworkPolicy
+# --- SandboxWarmPool: KEDA scales this, not a Deployment ---
+- apiVersion: extensions.agents.x-k8s.io/v1beta1
+  kind: SandboxWarmPool
   metadata:
-    name: ${BOT_NAME}-egress
+    name: ${BOT_NAME}
     labels:
+      app.kubernetes.io/name: ${BOT_NAME}
+      app.kubernetes.io/component: bot
       app.kubernetes.io/part-of: devbot
   spec:
-    podSelector:
-      matchLabels:
-        app.kubernetes.io/name: ${BOT_NAME}
-    policyTypes:
-    - Egress
-    egress:
-    - to:
-      - podSelector:
-          matchLabels:
-            app.kubernetes.io/name: devbot-proxy
-      ports:
-      - port: 3128
-        protocol: TCP
-      - port: 9090
-        protocol: TCP
-      - port: 8443
-        protocol: TCP
-      - port: 8444
-        protocol: TCP
-      - port: 8446
-        protocol: TCP
-    - to:
-      - podSelector:
-          matchLabels:
-            app.kubernetes.io/name: memory-server
-      ports:
-      - port: 8080
-        protocol: TCP
-    - to:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: openshift-dns
-      ports:
-      - port: 5353
-        protocol: UDP
-      - port: 5353
-        protocol: TCP
+    replicas: ${{BOT_REPLICAS}}
+    sandboxTemplateRef:
+      name: ${BOT_NAME}
 
 # --- KEDA Cron Scaler ---
 # Override KEDA_TIMEZONE, KEDA_CRON_START, KEDA_CRON_END per deployment
@@ -276,8 +305,8 @@ objects:
       app.kubernetes.io/part-of: devbot
   spec:
     scaleTargetRef:
-      apiVersion: apps/v1
-      kind: Deployment
+      apiVersion: extensions.agents.x-k8s.io/v1beta1
+      kind: SandboxWarmPool
       name: ${BOT_NAME}
     minReplicaCount: 0
     maxReplicaCount: 1

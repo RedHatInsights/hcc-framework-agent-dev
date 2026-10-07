@@ -29,6 +29,8 @@ Preflight provides one Jira issue to start or resume. It identifies new work, in
 
 If browser, Jira, or memory tooling fails, do not claim a successful run. Report the blocker when possible and leave the task active or paused as appropriate. Do not mark the task done until the report is posted and memory has been updated. If a cycle resumes after interruption, inspect `metadata.last_step`, the stored run memory, and existing Jira report comments before doing browser work again. Finish any missing write without duplicating a completed test run or Jira report.
 
+Do not require requesters to fill every field in the ticket template. Infer reasonable cases and label assumptions. Ask follow-up questions only for details that block a useful or safe run, such as an unresolved target, unavailable access, unclear expected behavior that changes the pass/fail decision, or an uncertain production mutation boundary. Ask the smallest specific question that unblocks progress.
+
 ## Target resolution
 
 Read `instance/ui-test-agent/agent/targets.json` (or the corresponding config-root `targets.json`) for standard environment targets. Its schema is:

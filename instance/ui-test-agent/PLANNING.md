@@ -19,41 +19,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 
 ## Jira intake template
 
-The request template should be approachable for submitters who have only a short feature description. Acceptance criteria and detailed test cases are optional; the agent derives an initial plan and records its assumptions.
-
-```markdown
-## UI test request
-
-**What should I test?** (required)
-Name the feature, change, bug fix, or user flow. A rough description is fine.
-
-**What would be useful to learn?** (required)
-- Check a specific change
-- Explore the feature and identify risks
-- Reproduce or verify a bug
-- Assess release readiness
-- Other:
-
-**Where should I test it?** (required)
-- Product or UI area:
-- Environment: dev / stage / prod / ephemeral
-- Page link: (required for ephemeral; helpful otherwise)
-- Build, release, or change under test, if known:
-
-**Who uses this, and what should they be able to do?**
-
-**What should happen?**
-Formal acceptance criteria are optional. If unsure, write “Please explore and document your assumptions.”
-
-**What should the agent avoid?**
-For production changes, identify the approved test org. Do not include credentials in Jira.
-
-**Access or test data notes:**
-Reference the approved account or access process; do not paste passwords or tokens.
-
-**Anything else that may help?**
-Known limitations, related tickets, previous results, or feature-owner context.
-```
+The request template should be approachable for submitters who have only a short feature description. Acceptance criteria and detailed test cases are optional; the agent derives an initial plan and records its assumptions. The copy-ready version lives in [JIRA-REQUEST-TEMPLATE.md](JIRA-REQUEST-TEMPLATE.md).
 
 If a standard environment URL cannot be resolved, access is unavailable, or safe test boundaries are unclear, the agent asks for the missing detail in Jira and pauses that run. It can proceed with incomplete acceptance criteria and should document assumptions.
 
@@ -154,6 +120,7 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 
 ## Implementation checklist
 
+- [x] Package the copy-ready Jira intake template with the instance.
 - [ ] Confirm the final Jira label and JQL/query for eligible unresolved tickets.
 - [ ] Configure app/environment URL resolution for standard dev, stage, and prod targets.
 - [ ] Define secure access for test accounts and the designated production test org.

@@ -6,8 +6,12 @@ Jira-driven UI exploration and readiness reporting for Hybrid Cloud Console.
 
 - `agent/instance.yaml` selects the custom Jira workflow and browser runtime.
 - `agent/targets.json` sets `https://console.stage.redhat.com` as the initial shared stage target and supports app-specific overrides. Dev and prod mappings are not configured yet. Ephemeral-environment tickets provide their own URL.
+- Set `BOT_CONFIG_PATH=instance/ui-test-agent` and a stable, unique `BOT_INSTANCE_ID` for this deployment.
 - Set `BOT_LABEL` to the dedicated Jira intake label. The initial proposed value is `hcc-ui-test`.
-- Configure browser access and the approved production test org through the deployment's existing secure configuration. Do not put credentials in this repo or Jira.
+- Provide the deployment's `JIRA_MCP_URL`; the framework supplies shared memory and Chromium through the `browser` runtime environment.
+- Configure test-account access and the approved production test org through the deployment's secure configuration. Do not put credentials in this repo or Jira.
+
+Before accepting requests for dev or prod, add the team-approved URL mapping to `agent/targets.json`. Before production mutation tests, configure the production test-org identifier for the relevant application. The workflow pauses instead of guessing when a target or safe access boundary is missing.
 
 The agent posts its report to the original Jira issue, does not transition Jira status, and tracks prior test runs in the shared memory server.
 
@@ -15,4 +19,6 @@ The agent posts its report to the original Jira issue, does not transition Jira 
 
 Use `BOT_CONFIG_PATH=instance/ui-test-agent` for this instance. The config root contains the `agent/` directory loaded by the runner.
 
-See [PLANNING.md](PLANNING.md) for the intake template, readiness rubric, report structure, and implementation decisions.
+See [PLANNING.md](PLANNING.md) for the readiness rubric, report structure, and implementation decisions.
+
+Copy the ready-to-use [Jira request template](JIRA-REQUEST-TEMPLATE.md) into new UI testing tickets. The agent can work from a rough description; requesters do not need to write formal acceptance criteria or test cases.

@@ -10,7 +10,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 
 - Work is initiated by a Jira ticket carrying a dedicated UI-testing label. The initial label name is proposed as `hcc-ui-test` and remains configurable.
 - The agent does not depend on Jira workflow changes or status transitions.
-- Standard dev, stage, and prod targets are resolved from configured environment URLs. Ephemeral-environment tickets must provide the exact target URL.
+- Standard targets are resolved from configured environment URLs. The initial shared stage target is `https://console.stage.redhat.com`; dev and prod mappings remain to be configured. Ephemeral-environment tickets must provide the exact target URL.
 - The baseline is desktop Chromium with exploratory and functional testing and screenshot evidence. Broader browser, mobile, accessibility, or performance testing is included when the ticket requests it.
 - Production testing is read-only by default. When mutation is needed, use only the designated production test org. The ticket should make that need clear.
 - Reports and test plans are posted on the original Jira ticket. Attach supporting plans and evidence when the Jira integration permits it.
@@ -159,6 +159,6 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 - [ ] Define secure access for test accounts and the designated production test org.
 - [ ] Verify the browser MCP can perform the required UI inspection and interactions.
 - [ ] Verify Jira comment, attachment, and comment-reading capabilities.
-- [ ] Implement retest detection for `/retest` and explicit developer requests.
-- [ ] Choose memory tags/metadata conventions for app, feature, environment, build, and case IDs.
-- [ ] Implement the custom workflow and instance configuration using the browser and Jira capabilities.
+- [x] Implement retest detection for `/retest` and explicit developer requests.
+- [x] Choose memory tags/metadata conventions for app, feature, environment, build, and case IDs.
+- [x] Scaffold the custom workflow and instance configuration using the browser and Jira capabilities.

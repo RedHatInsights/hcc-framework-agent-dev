@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "default_urls": {
+    "stage": "https://console.stage.redhat.com"
+  },
+  "applications": {}
+}

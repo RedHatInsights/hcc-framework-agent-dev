@@ -1,0 +1,18 @@
+name: ui-test
+type: workflow
+description: Explore HCC user interfaces, execute ticket-scoped tests, and report readiness
+
+preflight:
+  - 01-find-ui-test-work.py
+
+provides:
+  claude_md: CLAUDE.md
+
+requires:
+  mcp_servers:
+    - bot-memory
+    - mcp-atlassian
+    - chrome-devtools
+  env_vars:
+    - BOT_LABEL
+    - BOT_INSTANCE_ID

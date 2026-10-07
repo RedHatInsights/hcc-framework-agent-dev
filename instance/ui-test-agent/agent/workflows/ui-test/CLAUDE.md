@@ -60,6 +60,8 @@ Read `instance/ui-test-agent/agent/targets.json` (or the corresponding config-ro
 
 The checked-in target map has shared defaults for dev, stage, and prod. Use app-specific values under `applications` when an application has a different URL. Production mutations still require the approved test account and a clear authenticated account/org context. Never invent a URL or silently navigate to production when another environment was requested.
 
+Stage may require the corporate browser proxy `http://squid.corp.redhat.com:3128`. This is a browser-runtime setting, not a Jira or memory proxy setting. Do not change global proxy environment variables during a test. If stage is unreachable and the browser proxy is unavailable, report the access blocker and pause.
+
 - For dev, stage, and prod, resolve an app-specific URL first, then the environment's `default_urls` value. A page URL supplied by the requester may be used to identify the route, after confirming its origin matches the selected environment.
 - For ephemeral environments, require the exact URL in the Jira ticket and use it only for that request.
 - If the ticket does not identify the application or the map has no matching environment, ask in Jira instead of guessing.

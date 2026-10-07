@@ -11,6 +11,8 @@ Jira-driven UI exploration and readiness reporting for Hybrid Cloud Console.
 - Provide the deployment's `JIRA_MCP_URL`; the framework supplies shared memory and Chromium through the `browser` runtime environment.
 - Store each test identity in Vault and expose it to Kubernetes under a stable profile alias. Tickets select the alias, never include credentials. The signed-in account determines its existing org; a separate org ID is not required.
 
+Stage browser access may require `http://squid.corp.redhat.com:3128`. If so, configure it as a Chromium-specific proxy. Chromium currently inherits the pod-wide `HTTPS_PROXY`, so using Squid must not change the proxy for Jira, memory, or other agent traffic. Runtime support and network reachability need validation.
+
 Production is read-only by default. Mutating checks require an in-scope ticket and the approved test account to be active in its existing test org. Multi-profile support requires a credential helper that authenticates by alias without exposing secret values to the agent. The workflow pauses if the alias is unavailable or the active account/org cannot be established safely.
 
 The agent posts its report to the original Jira issue, does not transition Jira status, and tracks prior test runs in the shared memory server.

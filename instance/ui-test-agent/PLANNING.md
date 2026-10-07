@@ -13,6 +13,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 - Standard targets are resolved from configured environment URLs: dev `https://console.dev.redhat.com`, stage `https://console.stage.redhat.com`, and prod `https://console.redhat.com`. Ephemeral-environment tickets must provide the exact target URL.
 - The baseline is desktop Chromium with exploratory and functional testing and screenshot evidence. Broader browser, mobile, accessibility, or performance testing is included when the ticket requests it.
 - Production testing is read-only by default. When mutation is in scope, use the approved test-account credentials; the signed-in account determines its pre-existing test org, so no separate org ID is required. The ticket should make the need for mutation clear.
+- Test identities are selected by a non-secret profile alias. Credentials remain in Vault-backed Kubernetes Secrets; a credential helper must perform login without returning secret values to the agent. Adding an identity should require adding its secret and profile metadata, not new per-user environment variables or code.
 - Reports and test plans are posted on the original Jira ticket. Attach supporting plans and evidence when the Jira integration permits it.
 - `/retest` in a Jira comment is a retest request. An explicit developer request to retest also qualifies.
 - Shared memory is used to find prior test coverage and outcomes. Prior cases and locators are rechecked against the current target before reuse.
@@ -123,7 +124,8 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 - [x] Package the copy-ready Jira intake template with the instance.
 - [ ] Confirm the final Jira label and JQL/query for eligible unresolved tickets.
 - [x] Configure shared URL resolution for standard dev, stage, and prod targets.
-- [ ] Define secure access for test accounts and how the active account/org context is confirmed.
+- [ ] Implement Vault-backed test identity aliases and a credential helper that logs in without exposing secret values to the agent.
+- [ ] Confirm the active account/org context before production mutations.
 - [ ] Verify the browser MCP can perform the required UI inspection and interactions.
 - [ ] Verify Jira comment, attachment, and comment-reading capabilities.
 - [x] Implement retest detection for `/retest` and explicit developer requests.

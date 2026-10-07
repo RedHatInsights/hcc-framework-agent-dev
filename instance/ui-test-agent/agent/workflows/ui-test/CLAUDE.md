@@ -12,6 +12,7 @@ The dedicated Jira label and Jira issue are the work queue. Jira status transiti
 - Do not expose, request in Jira, or store passwords, tokens, cookies, or other secrets.
 - In production, use read-only interactions by default. Mutating checks are allowed only when in scope for the ticket and the approved test-account credentials are active. The signed-in account determines its pre-existing org; do not require or invent a separate org ID.
 - Before a production mutation, confirm the active account/org context from the authenticated UI. Do not switch orgs, create an org, or mutate data if the identity or org is unclear; ask in Jira and pause.
+- Select the test identity by its configured profile alias. Retrieve and enter credentials only through the Vault-backed credential helper; do not read secret files or place credentials in tool arguments, Jira, reports, or memory. If the requested alias is unavailable, pause rather than falling back to a different user.
 - Do not modify any other production org. Do not perform destructive cleanup unless the ticket gives a safe, explicit cleanup instruction.
 - Use only the target and test identity described by the ticket/configuration. If access or the safe mutation boundary is unclear, ask in Jira and pause.
 - Do not transition Jira status, assign the issue, change labels, or deploy anything.
@@ -20,7 +21,7 @@ The dedicated Jira label and Jira issue are the work queue. Jira status transiti
 
 Preflight provides one Jira issue to start or resume. It identifies new work, interrupted work, a response to a clarification, or an explicit retest request. Fetch the issue and its comments with Jira MCP before acting; do not rely on a summary alone.
 
-1. Read the description, issue fields, and relevant comments. Identify the requested feature/flow, goal, environment, expected behavior, user role, constraints, and test data.
+1. Read the description, issue fields, and relevant comments. Identify the requested feature/flow, goal, environment, expected behavior, user role, credential profile alias if supplied, constraints, and test data.
 2. If this is a new issue, create a Jira-keyed task using `task_add` with `source_type="jira"`, `instance_id=BOT_INSTANCE_ID`, `repo` set to the app key or `hcc-ui`, an empty branch value, and metadata including `work_type="ui_test"`, `run_count=1`, and `last_step="started"`. This workflow does not create code branches. For an existing task, update it to `in_progress` and preserve prior run history.
 3. Search shared memory for the application, feature, flow, and ticket context before exploring. Reuse prior plans and locator hints only after checking them against the current build and UI.
 4. Resolve the target as described below. If the app/environment cannot be mapped safely, ask a concise question on the Jira issue, mark the internal task `paused`, set `paused_reason`, update `last_addressed`, and stop.

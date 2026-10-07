@@ -9,9 +9,9 @@ Jira-driven UI exploration and readiness reporting for Hybrid Cloud Console.
 - Set `BOT_CONFIG_PATH=instance/ui-test-agent` and a stable, unique `BOT_INSTANCE_ID` for this deployment.
 - Set `BOT_LABEL` to the dedicated Jira intake label. The initial proposed value is `hcc-ui-test`.
 - Provide the deployment's `JIRA_MCP_URL`; the framework supplies shared memory and Chromium through the `browser` runtime environment.
-- Configure access through the deployment's secure test-account credentials. The signed-in account determines its existing org; a separate org ID is not required. Do not put credentials in this repo or Jira.
+- Store each test identity in Vault and expose it to Kubernetes under a stable profile alias. Tickets select the alias, never include credentials. The signed-in account determines its existing org; a separate org ID is not required.
 
-Production is read-only by default. Mutating checks require an in-scope ticket and the approved test account to be active in its existing test org. The workflow pauses if the active account or org cannot be established safely.
+Production is read-only by default. Mutating checks require an in-scope ticket and the approved test account to be active in its existing test org. Multi-profile support requires a credential helper that authenticates by alias without exposing secret values to the agent. The workflow pauses if the alias is unavailable or the active account/org cannot be established safely.
 
 The agent posts its report to the original Jira issue, does not transition Jira status, and tracks prior test runs in the shared memory server.
 

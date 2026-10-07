@@ -39,6 +39,8 @@ Read `instance/ui-test-agent/agent/targets.json` (or the corresponding config-ro
 {
   "schema_version": 1,
   "default_urls": {
+    "dev": "https://console.dev.redhat.com",
+    "prod": "https://console.redhat.com",
     "stage": "https://console.stage.redhat.com"
   },
   "applications": {
@@ -55,7 +57,7 @@ Read `instance/ui-test-agent/agent/targets.json` (or the corresponding config-ro
 }
 ```
 
-The checked-in target map has a shared stage default at `https://console.stage.redhat.com`. Dev and prod defaults are not configured yet. Add team-approved values under `default_urls`, or use app-specific values under `applications`. Add the production test-org identifier to the relevant application entry before production mutations are enabled. Never invent a URL or silently navigate to production when another environment was requested.
+The checked-in target map has shared defaults for dev, stage, and prod. Use app-specific values under `applications` when an application has a different URL. Add the production test-org identifier to the relevant application entry before production mutations are enabled. Never invent a URL or silently navigate to production when another environment was requested.
 
 - For dev, stage, and prod, resolve an app-specific URL first, then the environment's `default_urls` value. A page URL supplied by the requester may be used to identify the route, after confirming its origin matches the selected environment.
 - For ephemeral environments, require the exact URL in the Jira ticket and use it only for that request.

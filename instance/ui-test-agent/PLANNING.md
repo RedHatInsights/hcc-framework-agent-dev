@@ -10,7 +10,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 
 - Work is initiated by a Jira ticket carrying a dedicated UI-testing label. The initial label name is proposed as `hcc-ui-test` and remains configurable.
 - The agent does not depend on Jira workflow changes or status transitions.
-- Standard targets are resolved from configured environment URLs. The initial shared stage target is `https://console.stage.redhat.com`; dev and prod mappings remain to be configured. Ephemeral-environment tickets must provide the exact target URL.
+- Standard targets are resolved from configured environment URLs: dev `https://console.dev.redhat.com`, stage `https://console.stage.redhat.com`, and prod `https://console.redhat.com`. Ephemeral-environment tickets must provide the exact target URL.
 - The baseline is desktop Chromium with exploratory and functional testing and screenshot evidence. Broader browser, mobile, accessibility, or performance testing is included when the ticket requests it.
 - Production testing is read-only by default. When mutation is needed, use only the designated production test org. The ticket should make that need clear.
 - Reports and test plans are posted on the original Jira ticket. Attach supporting plans and evidence when the Jira integration permits it.
@@ -122,7 +122,7 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 
 - [x] Package the copy-ready Jira intake template with the instance.
 - [ ] Confirm the final Jira label and JQL/query for eligible unresolved tickets.
-- [ ] Configure app/environment URL resolution for standard dev, stage, and prod targets.
+- [x] Configure shared URL resolution for standard dev, stage, and prod targets.
 - [ ] Define secure access for test accounts and the designated production test org.
 - [ ] Verify the browser MCP can perform the required UI inspection and interactions.
 - [ ] Verify Jira comment, attachment, and comment-reading capabilities.

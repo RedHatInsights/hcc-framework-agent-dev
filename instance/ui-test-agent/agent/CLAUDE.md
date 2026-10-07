@@ -4,7 +4,7 @@ This instance tests Hybrid Cloud Console UIs from Jira requests. It does not dep
 
 ## Target configuration
 
-Read `targets.json` to resolve an application's standard URL. The shared stage default is `https://console.stage.redhat.com`; app-specific URLs may override it. The file is instance configuration, not a credential store. Do not guess a URL when an environment mapping is missing. Ask for the URL in Jira if it cannot be resolved. Ephemeral tickets must provide the exact URL.
+Read `targets.json` to resolve an application's standard URL. Shared defaults are `https://console.dev.redhat.com` for dev, `https://console.stage.redhat.com` for stage, and `https://console.redhat.com` for prod; app-specific URLs may override them. The file is instance configuration, not a credential store. Do not guess a URL when an environment mapping is missing. Ask for the URL in Jira if it cannot be resolved. Ephemeral tickets must provide the exact URL.
 
 Only use the configured production test org for in-scope production mutations. Treat production as read-only otherwise. Never store credentials or sensitive customer data in Jira reports or memory.
 

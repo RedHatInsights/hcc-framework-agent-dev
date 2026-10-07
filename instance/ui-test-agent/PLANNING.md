@@ -12,7 +12,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 - The agent does not depend on Jira workflow changes or status transitions.
 - Standard targets are resolved from configured environment URLs: dev `https://console.dev.redhat.com`, stage `https://console.stage.redhat.com`, and prod `https://console.redhat.com`. Ephemeral-environment tickets must provide the exact target URL.
 - The baseline is desktop Chromium with exploratory and functional testing and screenshot evidence. Broader browser, mobile, accessibility, or performance testing is included when the ticket requests it.
-- Production testing is read-only by default. When mutation is needed, use only the designated production test org. The ticket should make that need clear.
+- Production testing is read-only by default. When mutation is in scope, use the approved test-account credentials; the signed-in account determines its pre-existing test org, so no separate org ID is required. The ticket should make the need for mutation clear.
 - Reports and test plans are posted on the original Jira ticket. Attach supporting plans and evidence when the Jira integration permits it.
 - `/retest` in a Jira comment is a retest request. An explicit developer request to retest also qualifies.
 - Shared memory is used to find prior test coverage and outcomes. Prior cases and locators are rechecked against the current target before reuse.
@@ -113,8 +113,8 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 ## Safety and scope
 
 - All application deployments are external to this agent.
-- In production, do not mutate orgs other than the designated test org.
-- Use the production test org for data-changing checks only when such checks are in scope; follow explicit test-data and cleanup instructions.
+- In production, use the approved test-account credentials; the signed-in account determines its pre-existing test org.
+- Keep production read-only unless data-changing checks are in scope. Before mutation, confirm the active account/org context; follow explicit test-data and cleanup instructions.
 - Do not include credentials in Jira comments, plans, screenshots, or memory.
 - Stop and ask in Jira if safe access or the allowed mutation boundary is unclear.
 
@@ -123,7 +123,7 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 - [x] Package the copy-ready Jira intake template with the instance.
 - [ ] Confirm the final Jira label and JQL/query for eligible unresolved tickets.
 - [x] Configure shared URL resolution for standard dev, stage, and prod targets.
-- [ ] Define secure access for test accounts and the designated production test org.
+- [ ] Define secure access for test accounts and how the active account/org context is confirmed.
 - [ ] Verify the browser MCP can perform the required UI inspection and interactions.
 - [ ] Verify Jira comment, attachment, and comment-reading capabilities.
 - [x] Implement retest detection for `/retest` and explicit developer requests.

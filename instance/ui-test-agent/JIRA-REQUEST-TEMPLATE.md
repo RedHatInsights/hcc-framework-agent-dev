@@ -27,7 +27,7 @@ Name the feature, change, bug fix, or user flow. A rough description is fine.
 Formal acceptance criteria are optional. If unsure, write “Please explore and document your assumptions.”
 
 **What should the agent avoid?**
-For production changes, identify the approved test org. Do not include credentials in Jira.
+For production changes, state whether data-changing checks are in scope and note any account constraints. The approved test account determines its existing org. Do not include credentials in Jira.
 
 **Access or test data notes:**
 Reference the approved account or access process; do not paste passwords or tokens.

@@ -122,6 +122,7 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 
 ## Implementation checklist
 
+- [ ] Build contributor-ready local harness for fake Jira, memory, authentication, and one-cycle agent runs.
 - [x] Package the copy-ready Jira intake template with the instance.
 - [ ] Confirm the final Jira label and JQL/query for eligible unresolved tickets.
 - [x] Configure shared URL resolution for standard dev, stage, and prod targets.

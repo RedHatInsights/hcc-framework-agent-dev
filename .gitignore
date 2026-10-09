@@ -50,3 +50,4 @@ htmlcov/
 !DEPLOYMENT.md
 !instance/ui-test-agent/PLANNING.md
 !instance/ui-test-agent/JIRA-REQUEST-TEMPLATE.md
+!instance/ui-test-agent/TEST-HARNESS-PLAN.md

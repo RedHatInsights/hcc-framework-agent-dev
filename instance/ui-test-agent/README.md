@@ -23,4 +23,6 @@ Use `BOT_CONFIG_PATH=instance/ui-test-agent` for this instance. The config root 
 
 See [PLANNING.md](PLANNING.md) for the readiness rubric, report structure, and implementation decisions.
 
+See [TEST-HARNESS-PLAN.md](TEST-HARNESS-PLAN.md) for the deployment-free local validation plan.
+
 Copy the ready-to-use [Jira request template](JIRA-REQUEST-TEMPLATE.md) into new UI testing tickets. The agent can work from a rough description; requesters do not need to write formal acceptance criteria or test cases.

@@ -26,3 +26,7 @@ See [PLANNING.md](PLANNING.md) for the readiness rubric, report structure, and i
 See [TEST-HARNESS-PLAN.md](TEST-HARNESS-PLAN.md) for the deployment-free local validation plan.
 
 Copy the ready-to-use [Jira request template](JIRA-REQUEST-TEMPLATE.md) into new UI testing tickets. The agent can work from a rough description; requesters do not need to write formal acceptance criteria or test cases.
+
+## Try the agent locally
+
+The deployment-free [harness guide](harness/README.md) explains the offline checks and the optional one-cycle model run. Stage is the default target for that run; it uses synthetic Jira and memory services, with stage browser traffic routed through Squid. You provide the stage test account through `UI_TEST_USERNAME` and `UI_TEST_PASSWORD`; the local login helper keeps those values out of the bot and model. The harness does not deploy the instance or contact real Jira.

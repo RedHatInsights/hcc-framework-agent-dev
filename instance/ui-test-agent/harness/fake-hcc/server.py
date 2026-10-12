@@ -14,14 +14,14 @@ HARNESS_DIR = Path(__file__).resolve().parents[1]
 if str(HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(HARNESS_DIR))
 
-from fake_auth import load_profiles
+from fake_auth import LoginResult, Profile, ProfileMetadata, load_profiles
 
 
-def _profiles() -> dict:
+def _profiles() -> dict[str, Profile]:
     return load_profiles()
 
 
-def authenticate(username: str, password: str) -> tuple[int, dict]:
+def authenticate(username: str, password: str) -> tuple[int, LoginResult]:
     """Authenticate fixture values and return display-safe identity data."""
     identity = next(
         (
@@ -42,7 +42,7 @@ def authenticate(username: str, password: str) -> tuple[int, dict]:
     }
 
 
-def authenticate_configured(alias: str) -> tuple[int, dict]:
+def authenticate_configured(alias: str) -> tuple[int, LoginResult]:
     """Sign in the selected local profile without exposing its credentials."""
     profiles = _profiles()
     configured_username = os.environ.get("UI_HARNESS_USERNAME")
@@ -67,7 +67,7 @@ class FakeHccServer(ThreadingHTTPServer):
         if address[0] not in {"127.0.0.1", "::1", "localhost"}:
             raise ValueError("Fake HCC must bind to loopback")
         super().__init__(address, FakeHccHandler)
-        self.login_events = []
+        self.login_events: list[ProfileMetadata] = []
 
 
 class FakeHccHandler(BaseHTTPRequestHandler):
@@ -120,7 +120,7 @@ class FakeHccHandler(BaseHTTPRequestHandler):
             )
         self._json(status, result)
 
-    def _json(self, status: int, value: dict):
+    def _json(self, status: int, value: LoginResult | dict[str, object]) -> None:
         body = json.dumps(value).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")

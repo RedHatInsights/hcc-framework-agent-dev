@@ -11,6 +11,8 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 
+from starlette.datastructures import QueryParams
+
 HARNESS_DIR = Path(__file__).resolve().parents[1]
 INSTANCE_DIR = HARNESS_DIR.parent
 sys.path.insert(0, str(HARNESS_DIR))
@@ -204,10 +206,10 @@ class FakeServiceTests(unittest.TestCase):
         )
         payload = fake_mcp_server.memory_tasks_payload(
             memory,
-            {
-                "instance_id": "ui-test-harness",
-                "exclude_status": ["done", "paused", "archived"],
-            },
+            QueryParams(
+                "instance_id=ui-test-harness&exclude_status=done"
+                "&exclude_status=paused&exclude_status=archived"
+            ),
         )
         self.assertEqual(
             [task["external_key"] for task in payload["items"]], ["UITEST-A"]

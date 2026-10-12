@@ -5,23 +5,19 @@ from __future__ import annotations
 import argparse
 import os
 
+from starlette.datastructures import QueryParams
+
 from fake_services import FakeJira, FakeMemory
 
 
-def memory_tasks_payload(service: FakeMemory, query) -> dict:
+def memory_tasks_payload(service: FakeMemory, query: QueryParams) -> dict[str, object]:
     """Mirror the read-only task-list REST endpoint used by preflight helpers."""
     instance_id = query.get("instance_id")
     items = service.call(
         "task_list",
         {"include_archived": True, "instance_id": instance_id},
     )
-    if hasattr(query, "getlist"):
-        excluded = set(query.getlist("exclude_status"))
-    else:
-        raw_excluded = query.get("exclude_status", [])
-        excluded = set(
-            raw_excluded if isinstance(raw_excluded, list) else [raw_excluded]
-        )
+    excluded = set(query.getlist("exclude_status"))
     items = [task for task in items if task.get("status") not in excluded]
     return {"items": items}
 

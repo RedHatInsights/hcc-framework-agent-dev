@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import argparse
 import os
-
-from starlette.datastructures import QueryParams
+from typing import Protocol
 
 from fake_services import FakeJira, FakeMemory
 
 
-def memory_tasks_payload(service: FakeMemory, query: QueryParams) -> dict[str, object]:
+class QueryParameters(Protocol):
+    """Subset of Starlette's query parameter interface used by this helper."""
+
+    def get(self, key: str, default: str | None = None) -> str | None: ...
+
+    def getlist(self, key: str) -> list[str]: ...
+
+
+def memory_tasks_payload(
+    service: FakeMemory, query: QueryParameters
+) -> dict[str, object]:
     """Mirror the read-only task-list REST endpoint used by preflight helpers."""
     instance_id = query.get("instance_id")
     items = service.call(
@@ -28,9 +37,8 @@ def create_server(kind: str):
         from mcp.server.fastmcp import FastMCP
     except ImportError as exc:
         raise SystemExit(
-            "The dev-bot Python environment is required. Run with: "
-            "uv run --project dev-bot --extra dev python "
-            "instance/ui-test-agent/harness/fake_mcp_server.py ..."
+            "The harness server dependencies are required. Run with: "
+            "./instance/ui-test-agent/harness/run-fake-mcp.sh jira|memory"
         ) from exc
 
     if kind == "jira":

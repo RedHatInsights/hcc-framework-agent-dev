@@ -11,8 +11,6 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 
-from starlette.datastructures import QueryParams
-
 HARNESS_DIR = Path(__file__).resolve().parents[1]
 INSTANCE_DIR = HARNESS_DIR.parent
 sys.path.insert(0, str(HARNESS_DIR))
@@ -30,6 +28,17 @@ PREFLIGHT = (
     / "preflight"
     / "01-find-ui-test-work.py"
 )
+
+
+class QueryParamsFixture:
+    def __init__(self, values: dict[str, list[str]]):
+        self.values = values
+
+    def get(self, key: str, default: str | None = None) -> str | None:
+        return next(iter(self.values.get(key, [])), default)
+
+    def getlist(self, key: str) -> list[str]:
+        return self.values.get(key, [])
 
 
 def issue(key="UITEST-LOCAL-1", updated="2026-01-01T00:00:00Z", comments=None):
@@ -206,9 +215,11 @@ class FakeServiceTests(unittest.TestCase):
         )
         payload = fake_mcp_server.memory_tasks_payload(
             memory,
-            QueryParams(
-                "instance_id=ui-test-harness&exclude_status=done"
-                "&exclude_status=paused&exclude_status=archived"
+            QueryParamsFixture(
+                {
+                    "instance_id": ["ui-test-harness"],
+                    "exclude_status": ["done", "paused", "archived"],
+                }
             ),
         )
         self.assertEqual(

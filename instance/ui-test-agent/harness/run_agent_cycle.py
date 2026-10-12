@@ -52,19 +52,39 @@ MODEL_ENV_VARS = (
 
 
 def _model_environment(parent: dict[str, str]) -> dict[str, str]:
-    api_key_ready = bool(parent.get("ANTHROPIC_API_KEY"))
-    vertex_ready = (
-        parent.get("CLAUDE_CODE_USE_VERTEX", "").lower() in {"1", "true"}
-        and parent.get("CLAUDE_CODE_SKIP_VERTEX_AUTH", "").lower() in {"1", "true"}
-        and bool(parent.get("ANTHROPIC_VERTEX_BASE_URL"))
-        and bool(parent.get("ANTHROPIC_VERTEX_PROJECT_ID"))
+    vertex_flags = ("CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_SKIP_VERTEX_AUTH")
+    vertex_values = ("ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_VERTEX_PROJECT_ID")
+    use_vertex = parent.get("CLAUDE_CODE_USE_VERTEX", "").strip().lower()
+    other_vertex_settings = any(
+        parent.get(name, "").strip()
+        for name in ("CLAUDE_CODE_SKIP_VERTEX_AUTH", *vertex_values)
     )
-    if not api_key_ready and not vertex_ready:
+    vertex_requested = use_vertex not in {"", "0", "false"} or other_vertex_settings
+
+    if not vertex_requested:
+        if parent.get("ANTHROPIC_API_KEY", "").strip():
+            return {name: parent[name] for name in MODEL_ENV_VARS if parent.get(name)}
         raise RuntimeError(
-            "Set ANTHROPIC_API_KEY, or configure the Vertex proxy with "
+            "ANTHROPIC_API_KEY is unset or empty. To use Vertex instead, configure "
             "CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_SKIP_VERTEX_AUTH, "
             "ANTHROPIC_VERTEX_BASE_URL, and ANTHROPIC_VERTEX_PROJECT_ID."
         )
+
+    problems = []
+
+    for name in vertex_flags:
+        value = parent.get(name, "").strip()
+        if not value:
+            problems.append(f"{name} is unset (set it to true)")
+        elif value.lower() not in {"1", "true"}:
+            problems.append(f"{name} must be 'true' or '1'")
+
+    for name in vertex_values:
+        if not parent.get(name, "").strip():
+            problems.append(f"{name} is unset or empty")
+
+    if problems:
+        raise RuntimeError("Vertex configuration is incomplete: " + "; ".join(problems))
     return {name: parent[name] for name in MODEL_ENV_VARS if parent.get(name)}
 
 
@@ -366,6 +386,23 @@ def _extract_report(jira_state: dict) -> tuple[list[dict], str | None]:
     return reports, readiness
 
 
+def _extract_agent_model_error(log_path: Path) -> str | None:
+    if not log_path.is_file():
+        return None
+    for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = re.search(r"\[agent\]\s+(.*)", line)
+        if not match:
+            continue
+        message = match.group(1).strip()
+        if re.search(r"\bmodel\b", message, re.I) and re.search(
+            r"not available|not exist|no access|not have access|issue with the selected",
+            message,
+            re.I,
+        ):
+            return message
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -400,8 +437,19 @@ def main():
     if args.target == "stage":
         username = parent_env.get("UI_TEST_USERNAME", "")
         password = parent_env.get("UI_TEST_PASSWORD", "")
-        if not username or not password:
-            parser.error("stage mode requires UI_TEST_USERNAME and UI_TEST_PASSWORD")
+        missing_credentials = [
+            name
+            for name, value in (
+                ("UI_TEST_USERNAME", username),
+                ("UI_TEST_PASSWORD", password),
+            )
+            if not value
+        ]
+        if missing_credentials:
+            parser.error(
+                "stage mode is missing or has an empty value for: "
+                + ", ".join(missing_credentials)
+            )
         secrets = [username, password]
         if shutil.which("node") is None:
             parser.error(
@@ -411,7 +459,13 @@ def main():
         username = parent_env.get("UI_HARNESS_USERNAME", "")
         password = parent_env.get("UI_HARNESS_PASSWORD", "")
         if bool(username) != bool(password):
-            parser.error("set both UI_HARNESS_USERNAME and UI_HARNESS_PASSWORD")
+            missing_credential = (
+                "UI_HARNESS_PASSWORD" if username else "UI_HARNESS_USERNAME"
+            )
+            parser.error(
+                f"local mode has a partial fixture credential pair; "
+                f"{missing_credential} is unset or empty"
+            )
         secrets = [username, password]
     if args.target == "local" and not username and not password:
         profiles = json.loads(
@@ -513,6 +567,8 @@ def main():
                 "--no-first-run",
                 "--disable-sync",
                 "--disable-extensions",
+                "--use-mock-keychain",
+                "--disable-background-networking",
                 f"--proxy-server={chrome_proxy}",
                 "--proxy-bypass-list=localhost;127.0.0.1;::1",
                 "--remote-debugging-address=127.0.0.1",
@@ -565,11 +621,11 @@ def main():
             "BOT_DASHBOARD_URL": "http://127.0.0.1:8767/api/bot-status",
             "PLAYWRIGHT_BROWSERS_PATH": str(Path(chromium).parent),
         }
-        provider = (
-            "Vertex proxy"
-            if model_env.get("CLAUDE_CODE_USE_VERTEX")
-            else "Anthropic API"
-        )
+        uses_vertex = model_env.get("CLAUDE_CODE_USE_VERTEX", "").strip().lower() in {
+            "1",
+            "true",
+        }
+        provider = "Vertex proxy" if uses_vertex else "Anthropic API"
         print(f"Model provider: configured {provider}", flush=True)
 
         runner_log = (artifacts / "runner.log").open("w", encoding="utf-8")
@@ -613,6 +669,7 @@ def main():
         captured = _capture_state(artifacts, secrets, args.target)
         state = captured["state"]
         reports, readiness = _extract_report(state.get("jira", {}))
+        agent_model_error = _extract_agent_model_error(artifacts / "runner.log")
         fixture_authenticated = any(
             event.get("alias") == args.profile
             for event in state.get("hcc", {}).get("login_events", [])
@@ -632,6 +689,7 @@ def main():
             "profile_alias": args.profile,
             "report_count": len(reports),
             "readiness": readiness,
+            "agent_model_error": agent_model_error,
             "target_mode": args.target,
             "target_url": chrome_target,
             "login_events": state.get("hcc", {}).get("login_events", []),
@@ -677,6 +735,8 @@ def main():
         print(
             f"Cycle {'completed' if passed else 'did not meet harness checks'}; readiness: {readiness or 'missing'}."
         )
+        if agent_model_error:
+            print(f"Model error: {agent_model_error}")
         print(
             f"Inspect Jira report, tool calls, memory, logs, and transcript under {artifacts}"
         )

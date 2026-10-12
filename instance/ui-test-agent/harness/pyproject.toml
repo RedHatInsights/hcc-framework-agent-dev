@@ -1,0 +1,16 @@
+[project]
+name = "ui-test-agent-harness"
+version = "0.1.0"
+description = "Local tooling for the Hybrid Cloud Console UI testing agent"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+servers = [
+    "mcp>=1.1.0",
+    "starlette>=0.40",
+    "uvicorn>=0.30",
+]
+
+[tool.uv]
+package = false

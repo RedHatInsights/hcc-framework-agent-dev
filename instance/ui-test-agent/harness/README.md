@@ -1,9 +1,12 @@
 # UI testing agent local harness
 
 This harness gives contributors a repeatable, secret-free way to check the UI
-testing instance before deploying it. Its default checks need only Python 3 and
-use synthetic Jira, memory, and login data. They do not load `.env`, call Jira,
-start the agent model, read Vault/Kubernetes secrets, or contact a HCC target.
+testing instance before deploying it. It uses `uv` to create an isolated Python
+environment from this directory's `pyproject.toml` and `uv.lock`. The default
+checks use only Python and synthetic Jira, memory, and login data. They do not
+load `.env`, call Jira, start the agent model, read Vault/Kubernetes secrets,
+or contact a HCC target. Make sure Python 3.11+ and `uv` are available on
+`PATH`; the harness scripts create and use their own virtual environment.
 
 ## Run offline checks
 
@@ -12,6 +15,9 @@ From the repository root:
 ```sh
 ./instance/ui-test-agent/harness/run-offline.sh
 ```
+
+The first run creates the harness virtual environment. No third-party packages
+are needed for this check.
 
 The tests exercise the actual UI-test preflight script with in-process Jira and
 memory fakes, verify ticket selection and `/retest` dispatch, check the fake
@@ -81,16 +87,19 @@ To start the MCP fixtures, use two terminals:
 ./instance/ui-test-agent/harness/run-fake-mcp.sh memory
 ```
 
+These commands use the optional `servers` dependency set managed by `uv`;
+there is no need to activate a virtual environment manually.
+
 The default endpoints are `http://127.0.0.1:8766/mcp` and
 `http://127.0.0.1:8767/mcp`. The memory fixture also serves the read-only
-`/api/tasks` endpoint used by preflight capacity checks. `uv` prepares the
-dev-bot Python environment if needed. Do not point an agent at shared Jira or
-memory services when using this fixture.
+`/api/tasks` endpoint used by preflight capacity checks. Do not point an agent
+at shared Jira or memory services when using this fixture.
 
 ## Run one model-driven cycle
 
 Stage is the default target. The runner needs Chromium, `uv`, Node.js 22+, and
-Chrome DevTools MCP. Install Chrome DevTools MCP once:
+Chrome DevTools MCP. The first run also prepares the separate `dev-bot` Python
+environment used by the agent. Install Chrome DevTools MCP once:
 
 ```sh
 npm install --global chrome-devtools-mcp

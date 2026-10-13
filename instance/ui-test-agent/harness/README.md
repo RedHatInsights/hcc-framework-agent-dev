@@ -98,21 +98,33 @@ at shared Jira or memory services when using this fixture.
 ## Run one model-driven cycle
 
 Stage is the default target. The runner needs Chromium, `uv`, Node.js 22+, and
-Chrome DevTools MCP. The first run also prepares the separate `dev-bot` Python
-environment used by the agent. Install Chrome DevTools MCP once:
+Chrome DevTools MCP. The runner syncs the separate `dev-bot` Python environment
+from its lockfile before each cycle, keeping its bundled Claude CLI current.
+Install Chrome DevTools MCP once:
 
 ```sh
 npm install --global chrome-devtools-mcp
 ```
 
-Configure the model endpoint and stage test account in the shell, then run one
-synthetic Jira issue:
+Configure the stage test account, then run one synthetic Jira issue:
 
 ```sh
-export ANTHROPIC_API_KEY
 export UI_TEST_USERNAME
 export UI_TEST_PASSWORD
 ./instance/ui-test-agent/harness/run-agent-cycle.sh --allow-model
+```
+
+For this team's direct Vertex setup, the runner reads only the model-provider
+values from `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`)
+when the values are not already set in the shell. It passes the configured
+Google ADC file into the isolated model process. No Anthropic API key is needed.
+The ADC file must be available at the standard gcloud path or through
+`GOOGLE_APPLICATION_CREDENTIALS`. You can also run the command through `op` if
+that is how you provide the UI test account credentials:
+
+```sh
+op run --env-file "$HOME/env/claude.env" -- \
+  ./instance/ui-test-agent/harness/run-agent-cycle.sh --allow-model
 ```
 
 Use a non-secret alias with `--profile <alias>`; it defaults to `viewer`.
@@ -130,10 +142,35 @@ the agent to explore Subscriptions and Inventory. The runner does not deploy
 anything or connect to real Jira or shared memory. Do not use production
 credentials or set this harness up for production. Model calls may incur cost.
 
-For a Vertex proxy, set `CLAUDE_CODE_USE_VERTEX=true`,
-`CLAUDE_CODE_SKIP_VERTEX_AUTH=true`, `ANTHROPIC_VERTEX_BASE_URL`, and
-`ANTHROPIC_VERTEX_PROJECT_ID` instead of `ANTHROPIC_API_KEY`. Optionally set
-`UI_HARNESS_MODEL` to override the model in `dev-bot/config.json`.
+Direct Vertex mode needs `CLAUDE_CODE_USE_VERTEX=true`,
+`ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION`, and Google ADC. An optional
+`ANTHROPIC_VERTEX_BASE_URL` can select a custom endpoint. Do not set
+`CLAUDE_CODE_SKIP_VERTEX_AUTH` for direct Vertex; that flag is only for a Vertex
+proxy or gateway, where it must be paired with `ANTHROPIC_VERTEX_BASE_URL`.
+Optionally set `UI_HARNESS_MODEL` to override the model in `dev-bot/config.json`.
+
+For direct Vertex access, leave `ANTHROPIC_VERTEX_BASE_URL` unset, including
+when using the standard `https://aiplatform.googleapis.com/` endpoint. Claude
+Code derives that endpoint from `CLOUD_ML_REGION`; `/status` may still display
+the standard URL when the variable is unset. Setting the URL explicitly in
+`$HOME/env/claude.env` caused the Sonnet 5 availability error when commands ran
+under `op run`, while unsetting it fixed the request. Reserve
+`ANTHROPIC_VERTEX_BASE_URL` for an actual proxy or custom gateway.
+
+If a Vertex model works without `op` but fails under `op run`, check whether
+the env file sets this variable. To verify without editing the env file:
+
+```sh
+op run --env-file "$HOME/env/claude.env" -- \
+  env -u ANTHROPIC_VERTEX_BASE_URL \
+  claude --print --model claude-sonnet-5 "Reply with OK."
+```
+
+If that succeeds, remove `ANTHROPIC_VERTEX_BASE_URL` from the env file. Keep
+the direct Vertex project, region, provider flag, and ADC configuration.
+
+If your organization permits direct Anthropic API access, set
+`ANTHROPIC_API_KEY` instead of the Vertex settings.
 
 Use the entirely local simulated UI with `--target local --allow-model`. That
 mode accepts only `viewer` and `org-admin`, and optional `UI_HARNESS_USERNAME`

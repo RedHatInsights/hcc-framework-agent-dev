@@ -40,52 +40,173 @@ PORTS = {
 MODEL_ENV_VARS = (
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_DEFAULT_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
     "CLAUDE_CODE_USE_VERTEX",
     "CLAUDE_CODE_SKIP_VERTEX_AUTH",
     "ANTHROPIC_VERTEX_BASE_URL",
     "ANTHROPIC_VERTEX_PROJECT_ID",
     "ANTHROPIC_SMALL_FAST_MODEL",
+    "GOOGLE_APPLICATION_CREDENTIALS",
     "UI_HARNESS_MODEL",
     "CLOUD_ML_REGION",
     "VERTEX_LOCATION",
 )
 
 
-def _model_environment(parent: dict[str, str]) -> dict[str, str]:
-    vertex_flags = ("CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_SKIP_VERTEX_AUTH")
-    vertex_values = ("ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_VERTEX_PROJECT_ID")
-    use_vertex = parent.get("CLAUDE_CODE_USE_VERTEX", "").strip().lower()
-    other_vertex_settings = any(
-        parent.get(name, "").strip()
-        for name in ("CLAUDE_CODE_SKIP_VERTEX_AUTH", *vertex_values)
-    )
-    vertex_requested = use_vertex not in {"", "0", "false"} or other_vertex_settings
+VERTEX_MODEL_ENV_PREFIXES = ("VERTEX_REGION_CLAUDE_",)
 
-    if not vertex_requested:
-        if parent.get("ANTHROPIC_API_KEY", "").strip():
-            return {name: parent[name] for name in MODEL_ENV_VARS if parent.get(name)}
+
+def _claude_settings_environment(parent: dict[str, str]) -> dict[str, str]:
+    """Load only model-provider settings from the user's Claude settings file."""
+    home = Path(parent.get("HOME") or Path.home())
+    config_dir = Path(parent.get("CLAUDE_CONFIG_DIR") or home / ".claude").expanduser()
+    settings_path = config_dir / "settings.json"
+    if not settings_path.is_file():
+        return {}
+
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY is unset or empty. To use Vertex instead, configure "
-            "CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_SKIP_VERTEX_AUTH, "
-            "ANTHROPIC_VERTEX_BASE_URL, and ANTHROPIC_VERTEX_PROJECT_ID."
+            f"Could not read Claude Code settings at {settings_path}: {exc}"
+        ) from exc
+
+    env = settings.get("env", {}) if isinstance(settings, dict) else {}
+    if not isinstance(env, dict):
+        raise RuntimeError(
+            f"Claude Code settings at {settings_path} has an invalid 'env' section"
         )
 
-    problems = []
+    allowed = set(MODEL_ENV_VARS) - {"ANTHROPIC_API_KEY"}
+    return {
+        name: value
+        for name, value in env.items()
+        if isinstance(name, str)
+        and isinstance(value, str)
+        and (
+            name in allowed
+            or any(name.startswith(prefix) for prefix in VERTEX_MODEL_ENV_PREFIXES)
+        )
+    }
 
-    for name in vertex_flags:
-        value = parent.get(name, "").strip()
-        if not value:
-            problems.append(f"{name} is unset (set it to true)")
-        elif value.lower() not in {"1", "true"}:
-            problems.append(f"{name} must be 'true' or '1'")
 
-    for name in vertex_values:
-        if not parent.get(name, "").strip():
-            problems.append(f"{name} is unset or empty")
+def _merged_model_settings(parent: dict[str, str]) -> dict[str, str]:
+    """Use shell values over the corresponding values in Claude user settings."""
+    settings = _claude_settings_environment(parent)
+    settings.update(
+        {name: parent[name] for name in MODEL_ENV_VARS if parent.get(name, "").strip()}
+    )
+    for name in MODEL_ENV_VARS:
+        if name in settings:
+            settings[name] = settings[name].strip()
+    return settings
 
-    if problems:
-        raise RuntimeError("Vertex configuration is incomplete: " + "; ".join(problems))
-    return {name: parent[name] for name in MODEL_ENV_VARS if parent.get(name)}
+
+def _vertex_adc_path(parent: dict[str, str], settings: dict[str, str]) -> str | None:
+    configured_path = settings.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if configured_path:
+        credential_file = Path(configured_path).expanduser()
+        if not credential_file.is_file() or not os.access(credential_file, os.R_OK):
+            return None
+        return str(credential_file.resolve())
+
+    home = Path(parent.get("HOME") or Path.home())
+    default_adc = home / ".config" / "gcloud" / "application_default_credentials.json"
+    if default_adc.is_file() and os.access(default_adc, os.R_OK):
+        return str(default_adc.resolve())
+    return None
+
+
+def _model_environment(parent: dict[str, str]) -> dict[str, str]:
+    settings = _merged_model_settings(parent)
+    use_vertex = settings.get("CLAUDE_CODE_USE_VERTEX", "").lower()
+    skip_vertex_auth = settings.get("CLAUDE_CODE_SKIP_VERTEX_AUTH", "").lower()
+
+    if use_vertex not in {"1", "true"}:
+        if use_vertex and use_vertex not in {"0", "false"}:
+            raise RuntimeError("CLAUDE_CODE_USE_VERTEX must be 'true' or '1'")
+        if any(
+            settings.get(name)
+            for name in (
+                "CLAUDE_CODE_SKIP_VERTEX_AUTH",
+                "ANTHROPIC_VERTEX_BASE_URL",
+                "ANTHROPIC_VERTEX_PROJECT_ID",
+                "CLOUD_ML_REGION",
+            )
+        ):
+            raise RuntimeError(
+                "Vertex settings were found, but CLAUDE_CODE_USE_VERTEX is not "
+                "enabled. Set it to true in the shell or Claude settings."
+            )
+        if settings.get("ANTHROPIC_API_KEY"):
+            api_names = {
+                "ANTHROPIC_API_KEY",
+                "ANTHROPIC_BASE_URL",
+                "ANTHROPIC_MODEL",
+                "ANTHROPIC_DEFAULT_MODEL",
+                "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                "ANTHROPIC_SMALL_FAST_MODEL",
+                "UI_HARNESS_MODEL",
+            }
+            return {name: settings[name] for name in api_names if settings.get(name)}
+        raise RuntimeError(
+            "No model provider is configured. Set Vertex settings in the shell or "
+            "the 'env' section of ~/.claude/settings.json, or set ANTHROPIC_API_KEY "
+            "if direct Anthropic API access is permitted."
+        )
+
+    if skip_vertex_auth and skip_vertex_auth not in {"1", "true", "0", "false"}:
+        raise RuntimeError("CLAUDE_CODE_SKIP_VERTEX_AUTH must be 'true' or '1'")
+
+    project = settings.get("ANTHROPIC_VERTEX_PROJECT_ID", "")
+    if not project:
+        raise RuntimeError(
+            "Vertex configuration is missing ANTHROPIC_VERTEX_PROJECT_ID. Set it "
+            "in the shell or in the 'env' section of ~/.claude/settings.json."
+        )
+
+    vertex_names = {
+        name
+        for name in MODEL_ENV_VARS
+        if name not in {"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}
+        and settings.get(name)
+    }
+    for name in VERTEX_MODEL_ENV_PREFIXES:
+        vertex_names.update(
+            key for key in settings if key.startswith(name) and settings.get(key)
+        )
+    vertex_environment = {name: settings[name] for name in vertex_names}
+
+    if skip_vertex_auth in {"1", "true"}:
+        if not settings.get("ANTHROPIC_VERTEX_BASE_URL"):
+            raise RuntimeError(
+                "Vertex proxy mode is missing ANTHROPIC_VERTEX_BASE_URL. "
+                "CLAUDE_CODE_SKIP_VERTEX_AUTH is only needed for a proxy or gateway."
+            )
+        return vertex_environment
+
+    if not settings.get("CLOUD_ML_REGION"):
+        raise RuntimeError(
+            "Direct Vertex configuration is missing CLOUD_ML_REGION. Set it in the "
+            "shell or in the 'env' section of ~/.claude/settings.json."
+        )
+
+    adc_path = _vertex_adc_path(parent, settings)
+    if not adc_path:
+        raise RuntimeError(
+            "Direct Vertex needs Google Application Default Credentials. Set "
+            "GOOGLE_APPLICATION_CREDENTIALS to a readable credential file or run "
+            "'gcloud auth application-default login'. The harness passes the ADC "
+            "file path into its isolated model environment."
+        )
+    vertex_environment["GOOGLE_APPLICATION_CREDENTIALS"] = adc_path
+    return vertex_environment
 
 
 def _check_ports_free(target: str):
@@ -107,18 +228,10 @@ def _check_ports_free(target: str):
 
 def _python_runtime() -> Path:
     python = DEV_BOT_DIR / ".venv" / "bin" / "python"
-    required = "import claude_agent_sdk, mcp.server.fastmcp, uvicorn"
-    if python.is_file():
-        check = subprocess.run(
-            [str(python), "-c", required], capture_output=True, text=True
-        )
-        if check.returncode == 0:
-            return python
-
     uv = shutil.which("uv")
     if not uv:
-        raise RuntimeError("Install uv and prepare the dev-bot Python environment.")
-    print("Preparing the dev-bot Python environment (one-time setup)...", flush=True)
+        raise RuntimeError("Install uv to sync the dev-bot Python environment.")
+    print("Syncing the dev-bot Python environment from uv.lock...", flush=True)
     subprocess.run(
         [
             uv,
@@ -133,6 +246,15 @@ def _python_runtime() -> Path:
     )
     if not python.is_file():
         raise RuntimeError("uv did not create dev-bot/.venv/bin/python")
+    required = "import claude_agent_sdk, mcp.server.fastmcp, uvicorn"
+    check = subprocess.run(
+        [str(python), "-c", required], capture_output=True, text=True
+    )
+    if check.returncode != 0:
+        raise RuntimeError(
+            "The synchronized dev-bot environment is missing required packages: "
+            + (check.stderr.strip() or check.stdout.strip())
+        )
     return python
 
 
@@ -496,6 +618,8 @@ def main():
         runtime, config_repo = _write_runtime(
             workspace, model_env, args.max_turns, args.timeout, args.target
         )
+        agent_config = json.loads((runtime / "config.json").read_text(encoding="utf-8"))
+        selected_model = agent_config["claude"]["model"]
         home = workspace / "home"
         home.mkdir()
         base_env = _base_environment(home, python)
@@ -625,8 +749,31 @@ def main():
             "1",
             "true",
         }
-        provider = "Vertex proxy" if uses_vertex else "Anthropic API"
+        vertex_proxy = model_env.get(
+            "CLAUDE_CODE_SKIP_VERTEX_AUTH", ""
+        ).strip().lower() in {"1", "true"}
+        provider = (
+            "Vertex proxy"
+            if uses_vertex and vertex_proxy
+            else "Vertex AI (ADC)"
+            if uses_vertex
+            else "Anthropic API"
+        )
         print(f"Model provider: configured {provider}", flush=True)
+        sdk_version = subprocess.run(
+            [
+                str(python),
+                "-c",
+                "from importlib.metadata import version; print(version('claude-agent-sdk'))",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        print(
+            f"Agent model: {selected_model}; Claude Agent SDK: {sdk_version}",
+            flush=True,
+        )
 
         runner_log = (artifacts / "runner.log").open("w", encoding="utf-8")
         log_handles.append(runner_log)

@@ -9,6 +9,8 @@ Let contributors check changes to the instance definition without deploying it o
 - The ticket preflight selected a synthetic Jira issue using in-process Jira and memory stubs.
 - Headless Chromium completed a local two-step login using dummy credentials, driven directly over Chrome DevTools Protocol.
 - Neither check ran the agent model or used the configured Chrome DevTools MCP. They are smoke checks, not an end-to-end agent run.
+- Local Vertex troubleshooting (2026-10-13): the unwrapped Claude CLI succeeded with `claude-sonnet-5`, but the same request under `op run` failed as unavailable. The wrapper supplied `ANTHROPIC_VERTEX_BASE_URL=https://aiplatform.googleapis.com/`; unsetting only that variable made the request succeed. For direct Vertex, omit `ANTHROPIC_VERTEX_BASE_URL` and let Claude Code derive its standard endpoint from `CLOUD_ML_REGION`. `/status` can still show `https://aiplatform.googleapis.com/` when the variable is unset. See the troubleshooting note in `harness/README.md`.
+- Full local model cycle (2026-10-13): after removing that env override, the runner completed `UITEST-LOCAL-1` against the loopback fixture with `claude-sonnet-5` on Vertex. Exit code 0; readiness `Ready`; all three cases passed; one report comment and one learning-memory record were written to local fixtures; internal task status became `done`; Jira issue stayed `To Do`; credential-leak check was false. Cost was about $0.32 over 23 turns. This validates the local model-driven cycle, not Stage. The report says screenshots covered four states, but the transcript records three screenshot calls (post-login home, Subscriptions, Inventory); it did not capture the sign-in form screenshot it claims.
 
 ## Implementation status
 
@@ -22,8 +24,10 @@ state, costs, logs, and transcript are retained in a temporary results
 directory. Model use requires an explicit endpoint setup and `--allow-model`.
 
 The offline suite exercises preflight and fixture behavior without starting
-the bot or model. The one-cycle runner is implemented but has not been run
-against a live model endpoint in this checkout.
+the bot or model. One full local-fixture cycle completed against a live model
+endpoint after removing the explicit `ANTHROPIC_VERTEX_BASE_URL` from the `op`
+env file. Stage UI exploration has not yet been validated by a completed model
+cycle.
 
 ## Two run modes
 
@@ -94,4 +98,4 @@ The implementation can adjust file names, but all harness pieces should stay und
 
 ## Current gaps
 
-The stage runner and local credential helper are implemented but have not been exercised against stage or a live model endpoint in this checkout. Contributors need Chromium, Chrome DevTools MCP, model credentials, and a stage test account in `UI_TEST_USERNAME`/`UI_TEST_PASSWORD`. The separate local fixture mode uses `UI_HARNESS_USERNAME`/`UI_HARNESS_PASSWORD` and does not test real SSO. The deployed instance still requires its planned Vault-backed multi-profile helper.
+The stage runner and local credential helper still need a completed model-driven run against stage. Contributors need Chromium, Chrome DevTools MCP, model credentials, and a stage test account in `UI_TEST_USERNAME`/`UI_TEST_PASSWORD`. The separate local fixture mode uses `UI_HARNESS_USERNAME`/`UI_HARNESS_PASSWORD` and does not test real SSO. The deployed instance still requires its planned Vault-backed multi-profile helper.

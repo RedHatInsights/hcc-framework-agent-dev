@@ -489,6 +489,18 @@ def _sanitize_artifacts(artifacts: Path, secrets: list[str]) -> bool:
     return leaked
 
 
+def _remove_stage_screenshots(artifacts: Path) -> None:
+    """Avoid retaining images that may contain entered identity values."""
+    for path in artifacts.rglob("*"):
+        if path.is_file() and path.suffix.lower() in {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+        }:
+            path.unlink()
+
+
 def _extract_report(jira_state: dict) -> tuple[list[dict], str | None]:
     reports = []
     for issue in jira_state.get("issues", {}).values():
@@ -864,6 +876,8 @@ def main():
         credential_leak = captured["credential_leak_detected"] or _sanitize_artifacts(
             artifacts, secrets
         )
+        if args.target == "stage":
+            _remove_stage_screenshots(artifacts)
         snapshot["credential_leak_detected"] = credential_leak
         (artifacts / "summary.json").write_text(
             json.dumps(_redact(snapshot, secrets), indent=2) + "\n", encoding="utf-8"

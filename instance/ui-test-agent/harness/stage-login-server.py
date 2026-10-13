@@ -20,6 +20,7 @@ LOGIN_SCRIPT = HARNESS_DIR / "stage-login-cdp.mjs"
 PORT = 8768
 mcp = FastMCP("stage-login-helper")
 attempts: list[dict] = []
+password_submission_attempted = False
 USERNAME = os.environ.pop("UI_TEST_USERNAME", "")
 PASSWORD = os.environ.pop("UI_TEST_PASSWORD", "")
 PROFILE_ALIAS = os.environ.pop("UI_HARNESS_PROFILE", "viewer")
@@ -32,15 +33,22 @@ async def state(_request: Request):
 
 @mcp.tool()
 def sign_in() -> dict:
-    """Submit the configured stage test account in the current browser tab.
+    """Submit the configured stage account once after the login form is ready.
 
     Credentials come from this local helper's environment and are never
-    accepted as tool arguments or returned to the caller.
+    accepted as tool arguments or returned to the caller. A second call is
+    allowed only if the earlier call stopped before a password submission.
     """
+    global password_submission_attempted
     username = USERNAME
     password = PASSWORD
     alias = PROFILE_ALIAS
-    if not username or not password:
+    if password_submission_attempted:
+        result = {
+            "status": "blocked",
+            "message": "A password submission already ran in this cycle; credentials will not be submitted again.",
+        }
+    elif not username or not password:
         result = {
             "status": "blocked",
             "message": "Stage test credentials are not configured in the local helper.",
@@ -72,14 +80,19 @@ def sign_in() -> dict:
                 payload = (
                     json.loads(completed.stdout) if completed.stdout.strip() else {}
                 )
+                password_submission_attempted = bool(
+                    payload.pop("credential_submission_started", False)
+                )
                 if completed.returncode == 0 and payload.get("status"):
                     result = payload
                 else:
+                    password_submission_attempted = True
                     result = {
                         "status": "blocked",
                         "message": "The local login helper could not complete the stage sign-in flow.",
                     }
             except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+                password_submission_attempted = True
                 result = {
                     "status": "blocked",
                     "message": "The local login helper could not complete the stage sign-in flow.",

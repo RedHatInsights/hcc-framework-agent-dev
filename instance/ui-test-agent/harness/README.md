@@ -127,13 +127,19 @@ op run --env-file "$HOME/env/claude.env" -- \
   ./instance/ui-test-agent/harness/run-agent-cycle.sh --allow-model
 ```
 
-Use a non-secret alias with `--profile <alias>`; it defaults to `viewer`.
+Use a non-secret label with `--profile <alias>`; it defaults to `viewer`.
+In stage mode the label does not select or verify credentials: the account is
+the identity in `UI_TEST_USERNAME` and `UI_TEST_PASSWORD`, and its visible
+account/org role should be checked in the console.
 `UI_TEST_USERNAME` and `UI_TEST_PASSWORD` are read only by the local
-stage-login helper. The helper types them into the browser through CDP, clears
-the sign-in fields after submission when possible, and never returns them to
-the model, bot process, Jira, report, or memory. The helper only fills standard
-username/password forms on the stage console and approved Red Hat sign-in
-hosts. The agent inspects the result and confirms the account/org context.
+stage-login helper. It uses the Red Hat `@redhat-cloud-services/playwright-test-auth`
+package against the harness's existing Chromium session, clears the sign-in
+fields after the attempt when possible, and never returns credentials to the
+model, bot process, Jira, report, or memory. The package blocks TrustArc
+requests before the helper reloads Stage, then performs the standard Red Hat
+SSO flow. The helper allows at most one password submission per cycle and
+checks for a successful return to Stage before reporting sign-in. The agent
+inspects the result and confirms the account/org context.
 MFA, CAPTCHA, or unsupported sign-in forms remain a reported blocker.
 
 The browser alone uses `http://squid.corp.redhat.com:3128` for stage traffic;
@@ -181,8 +187,9 @@ The temporary bot workspace is deleted after the cycle. The printed results
 directory is retained under `/tmp/ui-test-agent-results-*` and contains the
 Jira report, fixture state, costs, logs, and model transcript. The runner
 scrubs configured UI credentials from persisted text files and records
-whether it detected a leak. Optional controls include `--max-turns 20` and
-`--timeout 600`.
+whether it detected a leak. Stage result bundles omit screenshot attachments
+so images of identity forms cannot retain entered values. Optional controls
+include `--max-turns 20` and `--timeout 600`.
 
 ## What this does not verify
 

@@ -6,6 +6,7 @@ import {
 
 const TARGET_URL = process.env.UI_TEST_TARGET_URL;
 const TARGET_HOST = 'console.stage.redhat.com';
+const SHOW_COOKIE_PROMPT = process.env.UI_HARNESS_SHOW_COOKIE_PROMPT === '1';
 const SSO_HOSTS = new Set([
   'sso.stage.redhat.com',
   'sso.redhat.com',
@@ -90,6 +91,10 @@ async function main() {
 
     credentialSubmissionStarted = true;
     await redHatSsoLogin(withBaseUrl(page), username, password);
+    if (SHOW_COOKIE_PROMPT) {
+      await page.unroute('**/*');
+      await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    }
     if (new URL(page.url()).hostname !== TARGET_HOST) {
       return {
         status: 'login_unconfirmed',

@@ -140,11 +140,15 @@ requests before the helper reloads Stage, then performs the standard Red Hat
 SSO flow. The helper allows at most one password submission per cycle and
 checks for a successful return to Stage before reporting sign-in. The agent
 inspects the result and confirms the account/org context.
+For an exploratory run that should expose the post-login TrustArc prompt to
+the agent, set `UI_HARNESS_SHOW_COOKIE_PROMPT=1`. The helper still blocks the
+prompt during SSO, then removes that blocker and reloads the dashboard. Leave
+it unset for the usual run.
 MFA, CAPTCHA, or unsupported sign-in forms remain a reported blocker.
 
 The browser alone uses `http://squid.corp.redhat.com:3128` for stage traffic;
 Jira and memory stay on local fixtures. The stage issue is read-only and asks
-the agent to explore Subscriptions and Inventory. The runner does not deploy
+the agent to authenticate and reach the HCC dashboard. The runner does not deploy
 anything or connect to real Jira or shared memory. Do not use production
 credentials or set this harness up for production. Model calls may incur cost.
 

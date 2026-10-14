@@ -276,12 +276,9 @@ def _fixture_issue() -> dict:
         environment = "stage"
         target_url = "https://console.stage.redhat.com"
         application = "Hybrid Cloud Console"
-        goal = "Explore the Subscriptions and Inventory views in the configured test account."
-        expected = (
-            "The configured test profile can authenticate, the active account and org context are clear, "
-            "and both views render without changing data."
-        )
-        scope = "Read-only exploration only. Do not create, edit, or delete data."
+        goal = "Authenticate with the configured test account and verify landing on the HCC dashboard."
+        expected = "Sign-in completes and the user reaches a usable Hybrid Cloud Console dashboard with the active account/org context clear."
+        scope = "Check authentication and the initial dashboard only. Read-only; do not create, edit, or delete data."
     else:
         environment = "ephemeral"
         target_url = "http://127.0.0.1:8765"
@@ -292,7 +289,11 @@ def _fixture_issue() -> dict:
     return {
         "key": "UITEST-LOCAL-1",
         "fields": {
-            "summary": f"Explore the {environment} console using the UI test harness",
+            "summary": (
+                "Verify Stage sign-in and dashboard landing"
+                if target_mode == "stage"
+                else f"Explore the {environment} console using the UI test harness"
+            ),
             "description": (
                 f"Application: {application}\n"
                 f"Environment: {environment}\n"

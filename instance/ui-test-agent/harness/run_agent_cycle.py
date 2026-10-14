@@ -728,6 +728,9 @@ def main():
                 "UI_HARNESS_PROFILE": args.profile,
                 "UI_TEST_USERNAME": username,
                 "UI_TEST_PASSWORD": password,
+                "UI_HARNESS_SHOW_COOKIE_PROMPT": parent_env.get(
+                    "UI_HARNESS_SHOW_COOKIE_PROMPT", ""
+                ),
             }
             login, log = _start(
                 "stage-login",

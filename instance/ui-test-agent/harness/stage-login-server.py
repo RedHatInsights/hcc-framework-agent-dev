@@ -67,6 +67,9 @@ def sign_in() -> dict:
                 "UI_TEST_USERNAME": username,
                 "UI_TEST_PASSWORD": password,
                 "UI_TEST_TARGET_URL": TARGET_URL,
+                "UI_HARNESS_SHOW_COOKIE_PROMPT": os.environ.get(
+                    "UI_HARNESS_SHOW_COOKIE_PROMPT", ""
+                ),
             }
             try:
                 completed = subprocess.run(

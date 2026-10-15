@@ -49,6 +49,8 @@ For each ticket, the agent:
 7. Reuses earlier cases as a starting point, not as proof of current readiness; revalidate locators and behavior on the current target.
 8. Reports results on the original Jira ticket and updates shared memory.
 
+Keep exploration bounded so the full report is completed in the same cycle. For broad requests, inventory the relevant UI, exercise representative high-impact behavior, and write detailed cases for other discovered functionality as `not run` when it was not exercised. Do not try to execute every drafted case in one cycle. After two reasonable attempts to clarify an interaction, record the evidence and coverage gap and move on. If a turn-budget warning appears, stop browser exploration and spend the remaining turns reporting findings and updating memory.
+
 ### Test case fields
 
 Each test case should include:
@@ -57,12 +59,16 @@ Each test case should include:
 - User role/persona and flow being checked
 - Priority or user impact, and whether the flow is common or an edge case
 - Preconditions and relevant test data
-- Numbered user actions
-- A semantic locator for each actionable UI element when discoverable
-- Expected result and observed result
+- A tester-ready, numbered sequence of atomic user actions, with enough detail to perform each action without guessing
+- The relevant verified semantic locator or locators beside every step that interacts with a UI control, for later automation
+- Expected result for each step when useful, plus an overall expected result and the observed result
 - Execution status: pass, fail, blocked, or not run
 - Environment, build/version when known, and execution date
 - Evidence link or attachment
+
+Write reports in readable Markdown, with one heading and structured details for each case. A summary table may be included, but it must not replace the full procedures. A numbered step describes one action and names the page/control, relevant input, and resulting state. Every step that interacts with a UI control must include that control's relevant, verified semantic locator or locators beside the action. If no semantic locator can be verified, state that explicitly and include an inspected test-ID or CSS fallback when available; never invent or silently omit a locator. Split broad summaries like “sign in, open the dashboard, and check the widgets” into the actual navigation, interaction, and verification steps. Include setup and cleanup when a case changes persistent or shared state; explain how to restore state when safe. Blocked and not-run cases still need the planned actions and expected results, plus the reason execution did not happen.
+
+Carry relevant controls, states, and behaviors discovered during exploration into the test cases, even when the ticket did not mention them. Do not invent unobserved locators or behavior: label assumptions and unverified steps clearly, and record what needs confirmation. The report should let a tester who did not participate in exploration execute the case without having to infer missing actions.
 
 Locators should be observed in the rendered UI and verified before inclusion. Prefer accessible role/name, label, placeholder, or visible text locators. Use a test ID or CSS selector only as a documented fallback. Note ambiguity or missing accessible names rather than inventing a locator.
 
@@ -79,7 +85,7 @@ Do not report Ready when a known user-annoying issue remains. A readiness result
 
 ## Jira report format
 
-Post a structured comment to the original ticket. Attach the detailed plan and supporting screenshots/artifacts when supported; if attachment upload is unavailable, include the plan in the comment and link available evidence.
+Post a structured comment to the original ticket. Include the complete tester-ready procedures in readable Markdown by default. Attach the detailed plan and supporting screenshots/artifacts when supported; if attachment upload is unavailable, include the full plan in the comment and link available evidence. A summary table is supplementary and must not stand in for test steps.
 
 The report should contain:
 

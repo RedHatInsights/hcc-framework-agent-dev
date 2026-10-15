@@ -13,7 +13,6 @@ from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-
 HARNESS_DIR = Path(__file__).resolve().parent
 TARGET_URL = "https://console.stage.redhat.com"
 LOGIN_SCRIPT = HARNESS_DIR / "stage-login-cdp.mjs"

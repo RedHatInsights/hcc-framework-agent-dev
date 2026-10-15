@@ -9,7 +9,6 @@ from common import INSTANCE_ID, get_capacity, output_result
 from jira_mcp import jira_call, jira_cleanup
 from memory_mcp import memory_call, memory_cleanup
 
-
 BOT_LABEL = os.environ.get("BOT_LABEL", "")
 LABEL_PATTERN = re.compile(r"^[a-zA-Z0-9:_-]+$")
 ACTIVE_STATUSES = {"in_progress", "pr_open", "pr_changes"}

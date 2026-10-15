@@ -32,6 +32,24 @@ python3 -m unittest discover \
   -s instance/ui-test-agent/harness/tests -v
 ```
 
+## Ruff formatting and lint
+
+Ruff is in the harness `dev` dependency group. From the repository root, check
+all Python files in this instance with:
+
+```sh
+uv run --project instance/ui-test-agent/harness \
+  ruff check --config instance/ui-test-agent/harness/pyproject.toml \
+  instance/ui-test-agent
+uv run --project instance/ui-test-agent/harness \
+  ruff format --check --config instance/ui-test-agent/harness/pyproject.toml \
+  instance/ui-test-agent
+```
+
+Run `ruff format` without `--check` to apply formatting. The configured lint
+rules check common Python errors and import order; E501 is ignored because
+fixture HTML and prompt strings have content-oriented line breaks.
+
 ## Fixtures
 
 - `fake_services.py` provides narrow, stateful Jira and memory fakes for the
@@ -124,8 +142,17 @@ that is how you provide the UI test account credentials:
 
 ```sh
 op run --env-file "$HOME/env/claude.env" -- \
-  ./instance/ui-test-agent/harness/run-agent-cycle.sh --allow-model
+  ./instance/ui-test-agent/harness/run-agent-cycle.sh \
+  --profile widget-exploration --scenario dashboard-widgets --allow-model
 ```
+
+The `dashboard-widgets` scenario asks the agent to explore the dashboard and
+widget library, develop tester-ready cases for widget management and widget
+capabilities, and record the layout changes it makes. The
+`dashboard-widgets-report` scenario verifies the current dashboard and library,
+then drafts a full Markdown report from recorded discovery notes without
+mutating widgets. Omit `--scenario` to run the default sign-in/dashboard
+request.
 
 Use a non-secret label with `--profile <alias>`; it defaults to `viewer`.
 In stage mode the label does not select or verify credentials: the account is
@@ -188,12 +215,16 @@ plus `UI_HARNESS_PASSWORD` are fixture-only values. Never use real HCC
 credentials in local mode.
 
 The temporary bot workspace is deleted after the cycle. The printed results
-directory is retained under `/tmp/ui-test-agent-results-*` and contains the
-Jira report, fixture state, costs, logs, and model transcript. The runner
+directory is retained under `/tmp/ui-test-agent-results-*`; when the agent posts
+a report, `jira-report.md` contains the readable Jira comment, while
+`summary.json` keeps the structured harness checks. The directory also contains
+fixture state, costs, logs, and the model transcript. The runner
 scrubs configured UI credentials from persisted text files and records
 whether it detected a leak. Stage result bundles omit screenshot attachments
-so images of identity forms cannot retain entered values. Optional controls
-include `--max-turns 20` and `--timeout 600`.
+so images of identity forms cannot retain entered values. The runner allows up
+to 100 model turns by default; override with `--max-turns` (1–100) for a shorter
+or bounded cycle. The default cycle timeout is 900 seconds; override with
+`--timeout` when needed.
 
 ## What this does not verify
 

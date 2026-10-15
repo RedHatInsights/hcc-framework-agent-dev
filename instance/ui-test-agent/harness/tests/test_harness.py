@@ -15,10 +15,13 @@ HARNESS_DIR = Path(__file__).resolve().parents[1]
 INSTANCE_DIR = HARNESS_DIR.parent
 sys.path.insert(0, str(HARNESS_DIR))
 
-from fake_services import FakeJira, FakeMemory
-from fake_auth import UnknownProfileError, login_profile, profile_metadata
-import fake_mcp_server
-
+import fake_mcp_server  # noqa: E402
+from fake_auth import (  # noqa: E402
+    UnknownProfileError,
+    login_profile,
+    profile_metadata,
+)
+from fake_services import FakeJira, FakeMemory  # noqa: E402
 
 PREFLIGHT = (
     INSTANCE_DIR

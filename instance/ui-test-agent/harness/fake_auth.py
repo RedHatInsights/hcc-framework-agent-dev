@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 from typing import Callable, NotRequired, TypedDict
 
-
 PROFILE_FILE = Path(__file__).parent / "fake-auth" / "profiles.json"
 
 

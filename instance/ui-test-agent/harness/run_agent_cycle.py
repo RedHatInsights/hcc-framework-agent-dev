@@ -18,7 +18,6 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
-
 HARNESS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = HARNESS_DIR.parents[2]
 DEV_BOT_DIR = REPO_ROOT / "dev-bot"
@@ -551,7 +550,17 @@ def main():
     parser.add_argument(
         "--profile", default=os.environ.get("UI_HARNESS_PROFILE", "viewer")
     )
-    parser.add_argument("--max-turns", type=int, default=40)
+    parser.add_argument(
+        "--scenario",
+        choices=(
+            "auth-dashboard",
+            "dashboard-widgets",
+            "dashboard-widgets-report",
+        ),
+        default="auth-dashboard",
+        help="Synthetic Jira request to run (default: auth-dashboard)",
+    )
+    parser.add_argument("--max-turns", type=int, default=100)
     parser.add_argument("--timeout", type=int, default=900)
     args = parser.parse_args()
     if not args.allow_model:
@@ -659,6 +668,7 @@ def main():
             if service == "jira":
                 service_env["UI_HARNESS_PROFILE"] = args.profile
                 service_env["UI_HARNESS_TARGET"] = args.target
+                service_env["UI_HARNESS_SCENARIO"] = args.scenario
             process, log = _start(
                 service,
                 [
@@ -882,12 +892,28 @@ def main():
         if args.target == "stage":
             _remove_stage_screenshots(artifacts)
         snapshot["credential_leak_detected"] = credential_leak
+        if reports:
+            report_body = _redact(reports[-1]["body"], secrets)
+            (artifacts / "jira-report.md").write_text(
+                report_body.rstrip() + "\n", encoding="utf-8"
+            )
         (artifacts / "summary.json").write_text(
             json.dumps(_redact(snapshot, secrets), indent=2) + "\n", encoding="utf-8"
         )
+        report_is_valid = len(reports) == 1 and readiness is not None
+        if len(reports) != 1:
+            print(
+                f"Expected exactly one Jira report, found {len(reports)}.",
+                flush=True,
+            )
+        elif readiness is None:
+            print(
+                "The Jira report is missing a recognized readiness result.",
+                flush=True,
+            )
         passed = (
             runner_exit == 0
-            and bool(reports)
+            and report_is_valid
             and (
                 fixture_authenticated
                 if args.target == "local"

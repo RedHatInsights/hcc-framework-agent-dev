@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-import sys
 from urllib.parse import urlparse
-
 
 HARNESS_DIR = Path(__file__).resolve().parents[1]
 if str(HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(HARNESS_DIR))
 
-from fake_auth import LoginResult, Profile, ProfileMetadata, load_profiles
+from fake_auth import (  # noqa: E402
+    LoginResult,
+    Profile,
+    ProfileMetadata,
+    load_profiles,
+)
 
 
 def _profiles() -> dict[str, Profile]:

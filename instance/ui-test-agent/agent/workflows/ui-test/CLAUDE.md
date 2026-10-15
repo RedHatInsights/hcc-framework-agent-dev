@@ -64,7 +64,7 @@ The checked-in target map has shared defaults for dev, stage, and prod. Use app-
 
 Stage may require the corporate browser proxy `http://squid.corp.redhat.com:3128`. This is a browser-runtime setting, not a Jira or memory proxy setting. Do not change global proxy environment variables during a test. If stage is unreachable and the browser proxy is unavailable, report the access blocker and pause.
 
-- For dev, stage, and prod, resolve an app-specific URL first, then the environment's `default_urls` value. A page URL supplied by the requester may be used to identify the route, after confirming its origin matches the selected environment.
+- For dev, stage, and prod, use an explicit target URL in the Jira request when its origin matches the selected environment; otherwise resolve an app-specific URL first, then the environment's `default_urls` value. A page URL supplied by the requester may be used to identify the route after confirming its origin matches the selected environment. Never use recursive filesystem searches (such as `find /`) to locate target configuration. If configuration lookup is needed, search the checked-out config repository with the available file tools.
 - For ephemeral environments, require the exact URL in the Jira ticket and use it only for that request.
 - If the ticket does not identify the application or the map has no matching environment, ask in Jira instead of guessing.
 - Confirm the opened page is the expected application and environment before entering test data.
@@ -78,11 +78,39 @@ The plan is part of exploration, not a separate prerequisite that the developer 
 3. Execute the refined cases and capture observed behavior. Do not report an expected result as a requirement if it came only from an assumption; label it as an assumption or ask the feature owner.
 4. Report each case with `pass`, `fail`, `blocked`, or `not run`.
 
-Each case should include a stable identifier, title, persona, flow frequency/impact, preconditions, test data, numbered steps, expected and observed results, case status, target environment/build/date, and evidence.
+Keep exploration bounded so the report is completed in the current cycle. For broad requests such as a widget inventory, inspect all relevant areas and exercise representative, high-impact behavior; document detailed cases for the remaining discovered widgets and mark them `not run` when they were not exercised. Do not exhaustively execute every drafted case in one cycle. If an interaction remains unclear after two reasonable attempts, record the evidence and coverage gap, then continue. When a turn-budget warning appears, stop browser exploration and use the remaining turns to post the report and store the run summary. Completing the report takes priority over further exploratory probing.
+
+Each case should include a stable identifier, title, persona, flow frequency/impact, preconditions, test data, numbered steps, expected and observed results, case status, target environment/build/date, and evidence. Write the report for a tester who did not participate in exploration and needs to run the case without guessing.
+
+### Test case detail and report style
+
+Use readable Markdown with one heading and structured details per case. Do not make a summary table the only presentation of the test plan. A short summary table is fine in addition to the full procedures.
+
+The `Steps` section must be a numbered, step-by-step procedure. Each step describes one tester action and gives enough detail to perform it: where to go, what control to use, what value or choice to enter when relevant, and what state to reach before continuing. For every step that interacts with a UI control, include the relevant verified semantic locator or locators needed to identify the control for later automation. Put each locator next to the action that uses it. If no semantic locator can be verified, say so for that step, describe the observed control, and provide a documented test-ID or CSS fallback only if one was inspected. Never silently omit the locator or invent one. Avoid compressed summaries such as “sign in, open the dashboard, and check the widgets.” Split that into individual navigation, interaction, and verification steps. Include an expected result for each step when it helps the tester know whether to continue; always include a clear overall expected result for the case.
+
+Use this format by default:
+
+```markdown
+### TC-01 — <user goal>
+
+- **Persona / impact:** <who uses this and priority or frequency>
+- **Preconditions:** <starting page, account/role, and required state>
+- **Test data:** <values to enter, or none>
+- **Steps:**
+  1. <One action, including the page or control and its verified semantic locator; if none is available, state that and give an inspected fallback or explain the locator gap.>
+     - **Expected:** <what should happen after this action, if useful>
+  2. <Next action, with its own locator; repeat for every UI interaction.>
+- **Expected result:** <observable outcome that determines pass/fail>
+- **Observed result:** <what happened, or “Not run”>
+- **Status:** <pass | fail | blocked | not run>
+- **Evidence:** <screenshot or Jira evidence reference, if available>
+```
+
+Keep the action sequence concrete and atomic: one numbered item should not hide multiple clicks, navigation changes, or assertions. Include setup and cleanup steps when the case changes persistent or shared state, and say how to restore the starting state when safe. For blocked or not-run cases, still provide the actionable planned procedure and expected results, then state why execution did not happen. Carry controls, states, and useful behavior discovered during exploration into the final cases; do not omit a discovery just because it was not in the original ticket. Do not invent details: identify unverified steps or assumptions explicitly and say what must be confirmed.
 
 ### Semantic locators
 
-For each actionable step, inspect the rendered DOM or accessibility tree and include a verified semantic locator hint when available. Prefer role and accessible name, label, placeholder, or visible text, for example:
+For every step that interacts with a UI control, inspect the rendered DOM or accessibility tree and include the relevant verified semantic locator or locators alongside the action. This locator detail is required for later automation. Prefer role and accessible name, label, placeholder, or visible text, for example:
 
 ```text
 getByRole("button", { name: "Create policy" })
@@ -124,7 +152,7 @@ Use this structure:
 <What passed, what risk remains, and why this outcome fits.>
 
 ### Test plan and results
-<Cases, steps, verified semantic locator hints, expected/observed results, status, and evidence.>
+<A brief overview may precede the cases. Include the full tester-ready Markdown procedure for every case using the format above; do not replace detailed steps with a summary table or prose overview.>
 
 ### Findings and risks
 <Severity, affected users/flow, frequency, reproduction, workaround, and evidence. State “None found” if appropriate.>

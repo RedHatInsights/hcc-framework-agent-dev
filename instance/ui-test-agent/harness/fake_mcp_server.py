@@ -272,28 +272,98 @@ def create_server(kind: str):
 def _fixture_issue() -> dict:
     profile_alias = os.environ.get("UI_HARNESS_PROFILE", "viewer")
     target_mode = os.environ.get("UI_HARNESS_TARGET", "local")
+    scenario = os.environ.get("UI_HARNESS_SCENARIO", "auth-dashboard")
     if target_mode == "stage":
         environment = "stage"
         target_url = "https://console.stage.redhat.com"
         application = "Hybrid Cloud Console"
-        goal = "Authenticate with the configured test account and verify landing on the HCC dashboard."
-        expected = "Sign-in completes and the user reaches a usable Hybrid Cloud Console dashboard with the active account/org context clear."
-        scope = "Check authentication and the initial dashboard only. Read-only; do not create, edit, or delete data."
+        if scenario == "dashboard-widgets-report":
+            summary = "Produce detailed HCC dashboard widget test plan"
+            goal = (
+                "Verify the current dashboard and widget-library inventory, then use "
+                "the recorded Stage discovery notes below to write a complete, "
+                "tester-ready widget test plan and results report. Keep each case "
+                "step-by-step and include relevant verified semantic locators for "
+                "every UI interaction. Clearly distinguish observations verified "
+                "this run from prior discovery notes and mark unexecuted cases not run."
+            )
+            expected = (
+                "A readable Markdown report with a separate detailed section for each "
+                "test case, atomic numbered actions, semantic locators, expected and "
+                "observed results, status, risks, assumptions, and coverage gaps."
+            )
+            scope = (
+                "Read-only report pass. You may inspect the dashboard and open then "
+                "close the Add widgets library. Do not add, remove, reorder, resize, "
+                "or otherwise mutate widgets. Do not claim prior observations were "
+                "retested in this run. If the current layout differs from the recorded "
+                "baseline, document the difference and do not attempt to repair it."
+            )
+            discovery_notes = (
+                "Prior Stage exploration on 2026-10-14: after removing an extra "
+                "Quay.io widget, the 10-widget dashboard baseline was verified as "
+                "Red Hat Enterprise Linux, Red Hat OpenShift, Ansible Automation "
+                "Platform, Recently visited, My favorite services, Subscriptions, "
+                "Explore capabilities, Red Hat OpenShift AI, Image Builder, and "
+                "Advanced Cluster Security. The Add widgets library listed My support "
+                "cases, Bookmarked learning resources, Events, and Integrations. "
+                "The Add widgets trigger was observed as a button with accessible name "
+                "Add widgets. Tray add handles did not expose consistent semantic "
+                "controls; click and simulated drag did not add a widget. One run "
+                "found 3 of 4 tray tiles had no interactive accessibility-tree entry; "
+                "the remaining entry was an unlabeled generic button. Removing a "
+                "widget from its Widget actions menu worked. A later read-only run "
+                "found the Red Hat Enterprise Linux widget missing; a cleanup attempt "
+                "did not confirm restoration. Restore-by-drag remains unverified. "
+                "Maximize height and Minimize height worked and returned "
+                "the card to its prior size. Subscriptions Active linked to "
+                "/subscriptions/inventory?status=active. Recently visited placed "
+                "Subscription Services first after visiting Subscriptions. The My "
+                "favorite services empty state included a View all services link. "
+                "Explore capabilities links were inventoried but not click-tested. "
+                "These are historical observations; verify current layout and locators "
+                "only, and label historical outcomes as prior-run results."
+            )
+        elif scenario == "dashboard-widgets":
+            summary = "Explore HCC dashboard widgets and map test coverage"
+            goal = (
+                "Explore the dashboard and widget library. Develop detailed test cases "
+                "for adding, removing, restoring, reordering, and resizing widgets, "
+                "and for exercising each widget's user-facing capabilities."
+            )
+            expected = (
+                "Inventory the dashboard widgets and library, exercise representative "
+                "widget management and widget capabilities, and document tester-ready "
+                "cases with step-by-step actions and verified semantic locators for all "
+                "discovered functionality. Mark unexecuted cases not run and record "
+                "results, risks, and coverage gaps."
+            )
+            scope = (
+                "Keep exploration bounded: test representative behavior and do not "
+                "exhaustively execute every drafted case in this run. If an interaction "
+                "remains unclear after two attempts, record the gap and continue. Use "
+                "the designated mutable test account. Record the initial dashboard "
+                "layout and each mutation. Limit mutations to dashboard widget layout. "
+                "Do not create or modify underlying service/customer data or use "
+                "irreversible reset actions."
+            )
+        else:
+            summary = "Verify Stage sign-in and dashboard landing"
+            goal = "Authenticate with the configured test account and verify landing on the HCC dashboard."
+            expected = "Sign-in completes and the user reaches a usable Hybrid Cloud Console dashboard with the active account/org context clear."
+            scope = "Check authentication and the initial dashboard only. Read-only; do not create, edit, or delete data."
     else:
         environment = "ephemeral"
         target_url = "http://127.0.0.1:8765"
         application = "Hybrid Cloud Console local fixture"
+        summary = f"Explore the {environment} console using the UI test harness"
         goal = "Explore the signed-in console and check the Subscriptions and Inventory views."
         expected = "The requested profile can sign in; both views open and show their fixture content."
         scope = "No production data or mutations are in scope."
     return {
         "key": "UITEST-LOCAL-1",
         "fields": {
-            "summary": (
-                "Verify Stage sign-in and dashboard landing"
-                if target_mode == "stage"
-                else f"Explore the {environment} console using the UI test harness"
-            ),
+            "summary": summary,
             "description": (
                 f"Application: {application}\n"
                 f"Environment: {environment}\n"
@@ -302,6 +372,11 @@ def _fixture_issue() -> dict:
                 f"Goal: {goal}\n"
                 f"Expected: {expected}\n"
                 f"Scope: {scope}"
+                + (
+                    f"\nDiscovery notes: {discovery_notes}"
+                    if target_mode == "stage" and scenario == "dashboard-widgets-report"
+                    else ""
+                )
             ),
             "status": {"name": "To Do"},
             "labels": ["ui-test"],

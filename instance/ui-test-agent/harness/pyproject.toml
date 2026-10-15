@@ -12,5 +12,16 @@ servers = [
     "uvicorn>=0.30",
 ]
 
+[dependency-groups]
+dev = ["ruff>=0.12.8"]
+
 [tool.uv]
 package = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"] # Embedded HTML and prompt text use content-oriented line breaks.

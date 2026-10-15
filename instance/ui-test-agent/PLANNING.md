@@ -16,7 +16,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 - Production testing is read-only by default. When mutation is in scope, use the approved test-account credentials; the signed-in account determines its pre-existing test org, so no separate org ID is required. The ticket should make the need for mutation clear.
 - Test identities are selected by a non-secret profile alias. Credentials remain in Vault-backed Kubernetes Secrets; a credential helper must perform login without returning secret values to the agent. Adding an identity should require adding its secret and profile metadata, not new per-user environment variables or code.
 - Reports and test plans are posted on the original Jira ticket. Attach supporting plans and evidence when the Jira integration permits it.
-- `/retest` in a Jira comment is a retest request. An explicit developer request to retest also qualifies.
+- `/retest` in a Jira comment is a retest request. New comments on a completed task are routed to the agent for semantic assessment; natural-language requests to retest qualify when the intent is clear.
 - Shared memory is used to find prior test coverage and outcomes. Prior cases and locators are rechecked against the current target before reuse.
 
 ## Jira intake template
@@ -31,7 +31,7 @@ If a standard environment URL cannot be resolved, access is unavailable, or safe
 2. Select one eligible ticket per cycle and read its description and relevant comments.
 3. Do not transition the Jira issue or require a custom status.
 4. Use the Jira-keyed task record to avoid repeating a completed run during ordinary polling.
-5. When `/retest` or an explicit developer retest request appears, start a new run against the current target and preserve the previous run's history.
+5. When a new comment appears after a completed run, assess whether it requests a retest. Start a new run only for `/retest` or a clear natural-language request, and preserve the previous run's history.
 6. Ask in Jira when a required target, access detail, or safety boundary is missing; do not guess these values.
 
 The exact label, unresolved-ticket query, and behavior for ambiguous retest comments are implementation settings to finalize.

@@ -21,10 +21,12 @@ The dedicated Jira label and Jira issue are the work queue. Jira status transiti
 
 ## Each cycle
 
-Preflight provides one Jira issue to start or resume. It identifies new work, interrupted work, a response to a clarification, or an explicit retest request. Fetch the issue and its comments with Jira MCP before acting; do not rely on a summary alone.
+Preflight provides one Jira issue to start or resume. It identifies new work, interrupted work, a response to a clarification, or a new comment on a completed test that may request a retest. Fetch the issue and its comments with Jira MCP before acting; do not rely on a summary alone.
+
+When the dispatch reason is a new unaddressed comment on a completed test, inspect its author and context and classify it before starting the normal test workflow. Preflight filters comments containing the agent's report or clarification markers; other comments are candidates and are not assumed to be human-authored or retest requests. If a comment does not request a retest or other action, update `last_addressed` to the newest comment timestamp you reviewed, keep the task `done`, and finish without browser work, a duplicate report, or a new test-memory record. If it asks a separate question, respond or clarify without rerunning UI tests unless the author also clearly requests a retest, then update `last_addressed`.
 
 1. Read the description, issue fields, and relevant comments. Identify the requested feature/flow, goal, environment, expected behavior, user role, credential profile alias if supplied, constraints, and test data.
-2. If this is a new issue, create a Jira-keyed task using `task_add` with `source_type="jira"`, `instance_id=BOT_INSTANCE_ID`, `repo` set to the app key or `hcc-ui`, an empty branch value, and metadata including `work_type="ui_test"`, `run_count=1`, and `last_step="started"`. This workflow does not create code branches. For an existing task, update it to `in_progress` and preserve prior run history.
+2. If this is a new issue, create a Jira-keyed task using `task_add` with `source_type="jira"`, `instance_id=BOT_INSTANCE_ID`, `repo` set to the app key or `hcc-ui`, an empty branch value, and metadata including `work_type="ui_test"`, `run_count=1`, and `last_step="started"`. This workflow does not create code branches. For an existing task, update it to `in_progress` and preserve prior run history when beginning test work. For a candidate follow-up on a completed task, assess its intent before changing the task status.
 3. Search shared memory for the application, feature, flow, and ticket context before exploring. Reuse prior plans and locator hints only after checking them against the current build and UI.
 4. Resolve the target as described below. If the app/environment cannot be mapped safely, ask a concise question on the Jira issue, mark the internal task `paused`, set `paused_reason`, update `last_addressed`, and stop.
 5. Draft candidate test cases from the ticket before interaction. Acceptance criteria may be incomplete; infer reasonable cases from the described user goal and clearly record assumptions.
@@ -188,6 +190,6 @@ Use `task_get`/`task_add`/`task_update` for the Jira-keyed work state. Internal 
 
 ## Retest and clarification comments
 
-Preflight dispatches a completed ticket again only for a new `/retest` comment or a clear human request to rerun the test. A simple mention of an old test in unrelated text is not enough. For a paused task, resume after a new human reply after `last_addressed`.
+For a completed task, preflight sends the newest unaddressed comment after `last_addressed` for semantic assessment. Its author and surrounding Jira context are available to help determine intent. Treat a standalone `/retest` command as an explicit request. For natural-language comments, decide from the whole comment and its context whether the author clearly asks for the UI tests to run again; do not rely on a fixed phrase list. A mention of testing, thanks, or unrelated feedback is not by itself a retest request. If the intent is ambiguous, ask a concise clarification in Jira and mark the task `paused`. For a paused task, resume after a new human reply after `last_addressed`.
 
 Begin clarification comments with `**UI Testing Agent Clarification**`. Update `last_addressed` after posting them so the same comment does not trigger an immediate resume. When a developer answers, preflight starts a new cycle; reread the issue and comments before continuing.

@@ -117,10 +117,13 @@ at shared Jira or memory services when using this fixture.
 
 Stage is the default target. The runner needs Chromium, `uv`, Node.js 22+, and
 Chrome DevTools MCP. The runner syncs the separate `dev-bot` Python environment
-from its lockfile before each cycle, keeping its bundled Claude CLI current.
-Install Chrome DevTools MCP once:
+from its lockfile before each cycle, keeping its bundled Claude CLI current. It
+uses a temporary copy of the runner and bounds the main loop to one cycle, so
+the harness does not depend on a particular `dev-bot` scheduled-source mode.
+Install the stage login helper dependencies and Chrome DevTools MCP once:
 
 ```sh
+npm ci --prefix instance/ui-test-agent/harness
 npm install --global chrome-devtools-mcp
 ```
 

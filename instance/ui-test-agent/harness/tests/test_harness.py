@@ -6,6 +6,7 @@ import io
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
@@ -16,6 +17,7 @@ INSTANCE_DIR = HARNESS_DIR.parent
 sys.path.insert(0, str(HARNESS_DIR))
 
 import fake_mcp_server  # noqa: E402
+import run_agent_cycle  # noqa: E402
 from fake_auth import (  # noqa: E402
     UnknownProfileError,
     login_profile,
@@ -144,6 +146,32 @@ class PreflightHarnessTests(unittest.TestCase):
         self.assertEqual(
             [name for name, _ in jira.calls], ["jira_search", "jira_get_issue"]
         )
+
+
+class RuntimeHarnessTests(unittest.TestCase):
+    def test_runner_copy_is_limited_to_one_cycle(self):
+        source = (
+            "def main():\n"
+            "    try:\n"
+            "        while True:\n"
+            "            _try_slack_digest()\n"
+            "            run_cycle()\n"
+            "    finally:\n"
+            "        release_lock()\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime = Path(tmp_dir)
+            bot_dir = runtime / "bot"
+            bot_dir.mkdir()
+            runner_module = bot_dir / "run.py"
+            runner_module.write_text(source, encoding="utf-8")
+
+            run_agent_cycle._limit_runtime_to_one_cycle(runtime)
+
+            bounded_source = runner_module.read_text(encoding="utf-8")
+            self.assertIn("for _cycle in range(1):", bounded_source)
+            self.assertNotIn("while True:", bounded_source)
+            compile(bounded_source, str(runner_module), "exec")
 
 
 class FakeServiceTests(unittest.TestCase):

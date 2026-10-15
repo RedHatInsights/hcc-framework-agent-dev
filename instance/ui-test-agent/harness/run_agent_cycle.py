@@ -277,6 +277,46 @@ def _find_chromium() -> str:
     )
 
 
+def _check_stage_login_dependencies(node: str) -> None:
+    """Fail before starting a model cycle if the local SSO packages are absent."""
+    check = subprocess.run(
+        [
+            node,
+            "--input-type=module",
+            "-e",
+            "await import('playwright'); "
+            "await import('@redhat-cloud-services/playwright-test-auth')",
+        ],
+        cwd=HARNESS_DIR,
+        capture_output=True,
+        text=True,
+    )
+    if check.returncode:
+        raise RuntimeError(
+            "Stage login helper dependencies are missing or failed to load. "
+            "Run `npm ci --prefix instance/ui-test-agent/harness` from the repository root."
+        )
+
+
+def _limit_runtime_to_one_cycle(runtime: Path) -> None:
+    """Bound the copied dev-bot runner without relying on source-specific exits."""
+    runner_module = runtime / "bot" / "run.py"
+    runner_source = runner_module.read_text(encoding="utf-8")
+    cycle_loop = "        while True:\n            _try_slack_digest()"
+    if runner_source.count(cycle_loop) != 1:
+        raise RuntimeError(
+            "Could not locate the dev-bot main cycle loop to limit the harness run"
+        )
+    runner_module.write_text(
+        runner_source.replace(
+            cycle_loop,
+            "        for _cycle in range(1):\n            _try_slack_digest()",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_runtime(
     workspace: Path, model: dict[str, str], max_turns: int, timeout: int, target: str
 ):
@@ -288,6 +328,8 @@ def _write_runtime(
         source = DEV_BOT_DIR / name
         if source.is_file():
             shutil.copy2(source, runtime / name)
+
+    _limit_runtime_to_one_cycle(runtime)
 
     config_path = runtime / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -334,12 +376,6 @@ def _write_runtime(
     profile = config_repo / "ui-test-agent"
     profile.mkdir(parents=True)
     shutil.copytree(INSTANCE_AGENT_DIR, profile / "agent")
-    instance_yaml = profile / "agent" / "instance.yaml"
-    text = instance_yaml.read_text(encoding="utf-8")
-    text, count = re.subn(r"(?m)^source:\s*.*$", "source: run_and_exit", text)
-    if count != 1:
-        raise RuntimeError("Could not set the local instance source to run_and_exit")
-    instance_yaml.write_text(text, encoding="utf-8")
     git = shutil.which("git")
     if not git:
         raise RuntimeError("git is required to create the disposable config overlay")
@@ -594,10 +630,12 @@ def main():
                 + ", ".join(missing_credentials)
             )
         secrets = [username, password]
-        if shutil.which("node") is None:
+        node = shutil.which("node")
+        if node is None:
             parser.error(
                 "stage mode requires Node.js 22+ for the local credential helper"
             )
+        _check_stage_login_dependencies(node)
     else:
         username = parent_env.get("UI_HARNESS_USERNAME", "")
         password = parent_env.get("UI_HARNESS_PASSWORD", "")

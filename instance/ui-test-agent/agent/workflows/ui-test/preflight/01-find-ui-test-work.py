@@ -15,16 +15,6 @@ ACTIVE_STATUSES = {"in_progress", "pr_open", "pr_changes"}
 COMMENT_LIMIT = 100
 REPORT_MARKER = "UI Testing Agent Report"
 QUESTION_MARKER = "UI Testing Agent Clarification"
-RETEST_REQUEST = re.compile(
-    r"(?:/retest\b|\bplease\s+(?:re-)?test\b|"
-    r"\b(?:can|could|would)\s+you\s+(?:please\s+)?(?:re-)?test\b|"
-    r"\bplease\s+run\s+(?:the\s+)?tests?\s+again\b|"
-    r"\b(?:retest|re-test)\s+(?:this|it|the\s+feature|the\s+flow)\b|"
-    r"\b(?:can|could|would)\s+you\s+(?:please\s+)?test\s+(?:this|it)\s+again\b|"
-    r"\b(?:can|could|would)\s+we\s+(?:please\s+)?(?:retest|re-test|run\s+(?:the\s+)?tests?\s+again)\b|"
-    r"\bplease\s+rerun\s+(?:the\s+)?(?:ui\s+)?tests?\b)",
-    re.IGNORECASE,
-)
 
 
 def _fields(issue):
@@ -92,11 +82,6 @@ def _parse_timestamp(value):
         return None
 
 
-def _comment_is_after(comment, timestamp):
-    created = _parse_timestamp(comment.get("created", ""))
-    return created is not None and timestamp is not None and created > timestamp
-
-
 def _issue_updated_after_task(issue, task):
     fields = _fields(issue)
     updated = _parse_timestamp(fields.get("updated", ""))
@@ -128,23 +113,24 @@ def _task_map(tasks):
     }
 
 
-def _latest_matching_comment(comments, task, matcher):
+def _latest_unaddressed_comment(comments, task):
     addressed = _parse_timestamp(task.get("last_addressed", ""))
     if addressed is None:
         return None
-    matching = []
+    unaddressed = []
     for comment in comments:
-        if not _comment_is_after(comment, addressed):
+        created = _parse_timestamp(comment.get("created", ""))
+        if created is None or created <= addressed:
             continue
         body = _comment_body_text(comment.get("body", ""))
-        if _comment_is_agent_generated(body) or not matcher.search(body):
+        if _comment_is_agent_generated(body) or not body.strip():
             continue
         author = (comment.get("author") or {}).get("displayName", "unknown")
-        matching.append((comment.get("created", ""), author, body.strip()))
-    if not matching:
+        unaddressed.append((created, comment.get("created", ""), author, body.strip()))
+    if not unaddressed:
         return None
-    matching.sort(key=lambda entry: entry[0])
-    return matching[-1]
+    unaddressed.sort(key=lambda entry: entry[0])
+    return unaddressed[-1][1:]
 
 
 def _format_work(issue, reason, task=None, comment=None):
@@ -211,7 +197,13 @@ def main():
             )
             return
 
-        work = {"active": [], "paused": [], "retest": [], "new": []}
+        work = {
+            "active": [],
+            "paused": [],
+            "retest": [],
+            "followup": [],
+            "new": [],
+        }
         for issue in issues:
             issue_key = issue.get("key")
             if not issue_key:
@@ -238,24 +230,28 @@ def main():
                 )
                 return
             if task_status == "paused":
-                comment = _latest_matching_comment(
-                    comments, task, re.compile(r".+", re.DOTALL)
-                )
+                comment = _latest_unaddressed_comment(comments, task)
                 if comment:
                     work["paused"].append((issue, task, comment))
             else:
-                comment = _latest_matching_comment(comments, task, RETEST_REQUEST)
+                comment = _latest_unaddressed_comment(comments, task)
                 if comment:
-                    work["retest"].append((issue, task, comment))
+                    comment_body = comment[2].strip()
+                    bucket = "retest" if comment_body == "/retest" else "followup"
+                    work[bucket].append((issue, task, comment))
 
         for bucket, reason in (
             ("active", "resume interrupted test work"),
             ("paused", "human reply received; resume test work"),
             ("retest", "explicit retest request received"),
+            (
+                "followup",
+                "new unaddressed comment after completed test; assess whether it requests a retest or other action",
+            ),
         ):
             if work[bucket]:
                 issue, task, comment = work[bucket][0]
-                if bucket in {"paused", "retest"}:
+                if bucket in {"paused", "retest", "followup"}:
                     active_count, max_count = get_capacity()
                     if active_count >= max_count:
                         output_result(
@@ -282,7 +278,7 @@ def main():
 
         output_result(
             "skip",
-            "No unprocessed UI-testing tickets, interrupted work, or explicit retest requests found",
+            "No unprocessed UI-testing tickets, interrupted work, or unaddressed follow-up comments found",
         )
     finally:
         jira_cleanup()

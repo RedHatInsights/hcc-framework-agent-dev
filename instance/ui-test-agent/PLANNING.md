@@ -14,10 +14,23 @@ The agent does not deploy applications. Deployments and environment preparation 
 - The local Stage harness routes Chromium through the corporate Squid proxy at `http://squid.corp.redhat.com:3128`; Stage model cycles have completed. Deployed browser-only proxy wiring and network reachability still need validation. Do not replace the pod-wide proxy used by Jira, memory, and agent traffic.
 - The baseline is desktop Chromium with exploratory and functional testing and screenshot evidence. Broader browser, mobile, accessibility, or performance testing is included when the ticket requests it.
 - Production testing is read-only by default. When mutation is in scope, use the approved test-account credentials; the signed-in account determines its pre-existing test org, so no separate org ID is required. The ticket should make the need for mutation clear.
-- Test identities are selected by a non-secret profile alias. Credentials remain in Vault-backed Kubernetes Secrets; a credential helper must perform login without returning secret values to the agent. Adding an identity should require adding its secret and profile metadata, not new per-user environment variables or code.
+- Test identities are selected by a non-secret profile alias. Start with `org-admin` and `non-org-admin` for the two basic access contexts. Credentials remain in Vault-backed Kubernetes Secrets; a credential helper resolves the requested alias and performs login without returning secret values to the agent. Add more specific persona aliases as testing needs evolve, by adding secret references and profile metadata rather than per-user environment variables or helper code. The alias names describe intended access; the signed-in UI must still confirm the actual account, org, and role. The default alias and exact Vault/Secret naming convention remain to be set during deployment design.
 - Reports and test plans are posted on the original Jira ticket. Attach supporting plans and evidence when the Jira integration permits it.
 - `/retest` in a Jira comment is a retest request. New comments on a completed task are routed to the agent for semantic assessment; natural-language requests to retest qualify when the intent is clear.
 - Shared memory is used to find prior test coverage and outcomes. Prior cases and locators are rechecked against the current target before reuse.
+
+### Initial Stage profile mapping
+
+The `hcc-platex-services-tenant` `chrome-credentials-secret` ExternalSecret in `konflux-release-data` provides a useful starting point:
+
+- `org-admin` can map to the `username` and `password` keys, sourced from the insights-chrome E2E account. Treat its admin role as unverified until the Stage UI confirms it.
+- `non-org-admin` can map to `E2E_NON_ADMIN_USER` and `E2E_NON_ADMIN_PASSWORD`.
+
+The generated Secret belongs to the Konflux tenant namespace, so a runtime agent in another namespace cannot reference that Secret directly. Configure a Vault-backed Secret for the agent's namespace using the same source references. Keep credential values and Vault paths out of agent config; configure only aliases and the helper's permitted Secret/key references. Keep the mapping extensible for future personas.
+
+### Deployment design note: credential helper
+
+Deploy the login helper as a sidecar container in the agent's existing pod. Mount the profile Secret read-only into the helper only; do not expose credential values in the bot container's environment or filesystem. The helper resolves the configured alias, performs Stage SSO through the pod's existing Chromium CDP session, and exposes only a narrow `sign_in(alias)` MCP tool on pod loopback. This should require no separate Deployment, Service, or Route. Before wiring the existing `chrome-credentials-secret`, confirm the agent pod uses the `hcc-platex-services-tenant` namespace; otherwise provision the equivalent Vault-backed Secret in the agent namespace.
 
 ## Jira intake template
 

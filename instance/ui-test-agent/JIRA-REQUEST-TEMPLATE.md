@@ -33,7 +33,7 @@ For production changes, state whether data-changing checks are in scope and note
 Reference the approved account or access process; do not paste passwords or tokens.
 
 **Test identity profile (optional):**
-Name the configured profile alias if this request needs a specific user context. Do not include a username, password, or token. If omitted, the agent uses the configured default profile or asks which context is needed.
+Name the configured profile alias if this request needs a specific user context. Starter aliases are `org-admin` and `non-org-admin`; more specific persona aliases may be added as needed. Do not include a username, password, or token. If omitted, the agent uses the configured default profile or asks which context is needed.
 
 **Anything else that may help?**
 Known limitations, related tickets, previous results, or feature-owner context.

@@ -92,6 +92,7 @@ mode. Stage login credentials go only to the local login helper.
 - The fake Jira and memory services receive all expected calls and no external calls.
 - The one-cycle runner exits after one synthetic issue, uses fake Jira and memory, and opens the stage target through Squid (or loopback UI in local mode).
 - Stage credentials are entered by the local helper and do not appear in model prompts, Jira, reports, memory, or persisted artifacts.
+- A Stage login counts as successful only when the helper sees the signed-in Insights Chrome `User Avatar` button; a redirect without that marker fails the cycle check.
 - Missing/invalid aliases and failed login produce a safe blocked outcome.
 - Retest creates a new run without overwriting prior results.
 - Cleanup stops local services and leaves no tracked files or persistent test state behind.

@@ -91,6 +91,24 @@ The fixture profile file contains intentionally fake values. Never copy real
 credentials into this directory. The fake login endpoint and browser page are
 only suitable for local harness use.
 
+## Verify Stage sign-in without a model cycle
+
+To check the real Stage login helper and its signed-in marker without starting
+Jira, memory, or the model, install the Node dependencies once and run:
+
+```sh
+npm ci --prefix instance/ui-test-agent/harness
+op run --env-file "$HOME/env/claude.env" -- \
+  ./instance/ui-test-agent/harness/run-stage-login-smoke.sh
+```
+
+The environment file must provide `UI_TEST_USERNAME` and `UI_TEST_PASSWORD`.
+You can also export those variables before running the script directly. It
+starts a temporary Chromium profile with the Stage proxy, submits credentials
+at most once, and passes only when the signed-in `User Avatar` control is
+visible. It prints the helper's status and removes the temporary browser
+profile on exit. It does not create a Jira report or test plan.
+
 To use a local test account instead of the dummy fixture values, set
 `UI_HARNESS_USERNAME` and `UI_HARNESS_PASSWORD`. Both must be set. The selected
 alias defaults to `viewer` and can be changed with `UI_HARNESS_PROFILE=org-admin`;
@@ -168,8 +186,11 @@ fields after the attempt when possible, and never returns credentials to the
 model, bot process, Jira, report, or memory. The package blocks TrustArc
 requests before the helper reloads Stage, then performs the standard Red Hat
 SSO flow. The helper allows at most one password submission per cycle and
-checks for a successful return to Stage before reporting sign-in. The agent
-inspects the result and confirms the account/org context.
+reports authentication only when the Insights Chrome `User Avatar` button is
+visible after Stage loads. This is the same signed-in marker used by the
+Insights Chrome Playwright auth tests. A redirect to Stage without that marker
+is unconfirmed and fails the harness check. The agent still inspects the
+visible account/org context; the helper does not establish the account's role.
 For an exploratory run that should expose the post-login TrustArc prompt to
 the agent, set `UI_HARNESS_SHOW_COOKIE_PROMPT=1`. The helper still blocks the
 prompt during SSO, then removes that blocker and reloads the dashboard. Leave

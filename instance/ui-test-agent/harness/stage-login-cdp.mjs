@@ -15,6 +15,18 @@ const SSO_HOSTS = new Set([
 ]);
 let credentialSubmissionStarted = false;
 
+async function hasSignedInUserMenu(page, timeout = 5000) {
+  try {
+    await page
+      .getByRole('button', { name: /User Avatar/ })
+      .first()
+      .waitFor({ state: 'visible', timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function withBaseUrl(page) {
   return new Proxy(page, {
     get(target, property) {
@@ -72,15 +84,28 @@ async function main() {
     await disableCookiePrompt(page);
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
+    if (await hasSignedInUserMenu(page)) {
+      return {
+        status: 'already_authenticated',
+        message: 'The Insights Chrome User Avatar control is visible. Verify the account and org context before testing.',
+      };
+    }
+
     const usernameField = page.getByLabel('Red Hat login').first();
     try {
       await usernameField.waitFor({ state: 'visible', timeout: 30000 });
     } catch {
       const currentHost = new URL(page.url()).hostname;
       if (currentHost === TARGET_HOST) {
+        if (await hasSignedInUserMenu(page)) {
+          return {
+            status: 'already_authenticated',
+            message: 'The Insights Chrome User Avatar control is visible. Verify the account and org context before testing.',
+          };
+        }
         return {
-          status: 'already_authenticated',
-          message: 'Stage remained on the console without an SSO login form. Verify the account and org context before testing.',
+          status: 'authentication_unconfirmed',
+          message: 'Stage loaded without an SSO form, but the signed-in User Avatar control was not found. Do not assume authentication.',
         };
       }
       return {
@@ -102,10 +127,17 @@ async function main() {
         message: 'The SSO helper completed without returning to the Stage console. Do not retry in this cycle.',
       };
     }
+    if (!(await hasSignedInUserMenu(page, 60000))) {
+      return {
+        status: 'login_unconfirmed',
+        credential_submission_started: true,
+        message: 'Stage loaded after SSO, but the signed-in User Avatar control was not found. Do not assume authentication or retry in this cycle.',
+      };
+    }
     return {
-      status: 'credentials_submitted',
+      status: 'authenticated',
       credential_submission_started: true,
-      message: 'The Red Hat SSO helper returned to the Stage console. Verify the account and org context before testing.',
+      message: 'Stage loaded and the Insights Chrome User Avatar control is visible. Verify the account and org context before testing.',
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : '';

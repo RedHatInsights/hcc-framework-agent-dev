@@ -888,6 +888,10 @@ def main():
         stage_login_attempted = any(
             attempt.get("status") for attempt in stage_login_attempts
         )
+        stage_login_authenticated = any(
+            attempt.get("status") in {"authenticated", "already_authenticated"}
+            for attempt in stage_login_attempts
+        )
         learned = any(
             item.get("external_key") == "UITEST-LOCAL-1"
             and item.get("source_type") == "jira"
@@ -908,6 +912,7 @@ def main():
                 fixture_authenticated if args.target == "local" else None
             ),
             "stage_login_helper_invoked": stage_login_attempted,
+            "stage_login_authenticated": stage_login_authenticated,
             "memory_record_created": learned,
             "credential_leak_detected": captured["credential_leak_detected"],
             "agent_report": reports[-1] if reports else None,
@@ -955,7 +960,7 @@ def main():
             and (
                 fixture_authenticated
                 if args.target == "local"
-                else stage_login_attempted
+                else stage_login_authenticated
             )
             and learned
             and not credential_leak
@@ -963,6 +968,16 @@ def main():
         print(
             f"Cycle {'completed' if passed else 'did not meet harness checks'}; readiness: {readiness or 'missing'}."
         )
+        if args.target == "stage" and not stage_login_authenticated:
+            statuses = sorted(
+                {attempt.get("status", "unknown") for attempt in stage_login_attempts}
+            )
+            detail = ", ".join(statuses) if statuses else "helper not called"
+            print(
+                "Stage authentication was not confirmed by the signed-in User Avatar control; "
+                f"helper status: {detail}.",
+                flush=True,
+            )
         if agent_model_error:
             print(f"Model error: {agent_model_error}")
         print(

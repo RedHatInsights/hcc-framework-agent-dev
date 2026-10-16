@@ -555,6 +555,37 @@ def _extract_report(jira_state: dict) -> tuple[list[dict], str | None]:
     return reports, readiness
 
 
+def _stage_login_authenticated(attempts: list[dict]) -> bool:
+    return any(
+        attempt.get("status") in {"authenticated", "already_authenticated"}
+        for attempt in attempts
+    )
+
+
+def _cycle_passed(
+    *,
+    target: str,
+    runner_exit: int,
+    report_is_valid: bool,
+    fixture_authenticated: bool,
+    stage_login_attempts: list[dict],
+    learned: bool,
+    credential_leak: bool,
+) -> bool:
+    authenticated = (
+        fixture_authenticated
+        if target == "local"
+        else _stage_login_authenticated(stage_login_attempts)
+    )
+    return (
+        runner_exit == 0
+        and report_is_valid
+        and authenticated
+        and learned
+        and not credential_leak
+    )
+
+
 def _extract_agent_model_error(log_path: Path) -> str | None:
     if not log_path.is_file():
         return None
@@ -888,10 +919,7 @@ def main():
         stage_login_attempted = any(
             attempt.get("status") for attempt in stage_login_attempts
         )
-        stage_login_authenticated = any(
-            attempt.get("status") in {"authenticated", "already_authenticated"}
-            for attempt in stage_login_attempts
-        )
+        stage_login_authenticated = _stage_login_authenticated(stage_login_attempts)
         learned = any(
             item.get("external_key") == "UITEST-LOCAL-1"
             and item.get("source_type") == "jira"
@@ -954,16 +982,14 @@ def main():
                 "The Jira report is missing a recognized readiness result.",
                 flush=True,
             )
-        passed = (
-            runner_exit == 0
-            and report_is_valid
-            and (
-                fixture_authenticated
-                if args.target == "local"
-                else stage_login_authenticated
-            )
-            and learned
-            and not credential_leak
+        passed = _cycle_passed(
+            target=args.target,
+            runner_exit=runner_exit,
+            report_is_valid=report_is_valid,
+            fixture_authenticated=fixture_authenticated,
+            stage_login_attempts=stage_login_attempts,
+            learned=learned,
+            credential_leak=credential_leak,
         )
         print(
             f"Cycle {'completed' if passed else 'did not meet harness checks'}; readiness: {readiness or 'missing'}."

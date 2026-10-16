@@ -174,6 +174,69 @@ class RuntimeHarnessTests(unittest.TestCase):
             compile(bounded_source, str(runner_module), "exec")
 
 
+class CycleGateTests(unittest.TestCase):
+    def cycle_passes(self, **overrides):
+        checks = {
+            "target": "stage",
+            "runner_exit": 0,
+            "report_is_valid": True,
+            "fixture_authenticated": False,
+            "stage_login_attempts": [{"status": "authenticated"}],
+            "learned": True,
+            "credential_leak": False,
+        }
+        checks.update(overrides)
+        return run_agent_cycle._cycle_passed(**checks)
+
+    def test_stage_requires_confirmed_login_status(self):
+        for status in ("authenticated", "already_authenticated"):
+            with self.subTest(status=status):
+                self.assertTrue(
+                    self.cycle_passes(stage_login_attempts=[{"status": status}])
+                )
+
+        for status in (
+            "credentials_submitted",
+            "authentication_unconfirmed",
+            "login_unconfirmed",
+            "blocked",
+            "unknown",
+        ):
+            with self.subTest(status=status):
+                self.assertFalse(
+                    self.cycle_passes(stage_login_attempts=[{"status": status}])
+                )
+
+        self.assertFalse(self.cycle_passes(stage_login_attempts=[]))
+
+    def test_local_target_uses_fixture_authentication(self):
+        self.assertTrue(
+            self.cycle_passes(
+                target="local",
+                fixture_authenticated=True,
+                stage_login_attempts=[],
+            )
+        )
+        self.assertFalse(
+            self.cycle_passes(
+                target="local",
+                fixture_authenticated=False,
+                stage_login_attempts=[{"status": "authenticated"}],
+            )
+        )
+
+    def test_other_cycle_checks_still_gate_success(self):
+        failures = {
+            "runner_exit": 1,
+            "report_is_valid": False,
+            "learned": False,
+            "credential_leak": True,
+        }
+        for failed_check, value in failures.items():
+            with self.subTest(failed_check=failed_check):
+                self.assertFalse(self.cycle_passes(**{failed_check: value}))
+
+
 class FakeServiceTests(unittest.TestCase):
     def test_fake_jira_records_comments_and_rejects_transitions(self):
         jira = FakeJira([issue()])

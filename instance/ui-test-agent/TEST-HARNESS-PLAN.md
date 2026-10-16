@@ -27,10 +27,9 @@ state, costs, logs, and transcript are retained in a temporary results
 directory. Model use requires an explicit endpoint setup and `--allow-model`.
 
 The offline suite exercises preflight and fixture behavior without starting
-the bot or model. One full local-fixture cycle completed against a live model
-endpoint after removing the explicit `ANTHROPIC_VERTEX_BASE_URL` from the `op`
-env file. Stage UI exploration has not yet been validated by a completed model
-cycle.
+the bot or model. Full local-fixture and Stage UI cycles have completed against
+a live model endpoint. These runs validate the local harness and workflow, not
+a deployed agent or real Jira integration.
 
 ## Two run modes
 
@@ -42,31 +41,29 @@ Run deterministic checks for target/config validation, preflight selection and r
 
 Run the actual runner for one cycle against fake Jira and memory. Stage is the default UI target; this exercises the workflow prompt, MCP tool use, browser proxy, and local credential helper against stage. It requires explicitly configured model endpoint and stage test-account environment variables plus `--allow-model`; it must not load the repository `.env` or connect to real Jira or shared memory. Model usage may incur cost, so the runner clearly announces the target before starting.
 
-## Proposed layout
+## Implemented layout
 
 ```text
 harness/
-  README.md                 # contributor setup and commands
-  run-offline.sh            # deterministic checks; no model call
-  run-agent-cycle.sh        # opt-in single cycle
-  fake-jira/                # stateful Jira MCP fixture
-  fake-memory/              # isolated in-memory MCP fixture
-  fake-hcc/                 # local portal and two-step login page
-  fake-auth/                 # dummy profile resolver/login helper
-  scenarios/                # ticket, account, and expected-result fixtures
-  tests/                     # preflight, MCP contract, and browser checks
+  fake-auth/profiles.json
+  fake-hcc/server.py
+  fake_auth.py
+  fake_mcp_server.py
+  fake_services.py
+  run-offline.sh
+  run-agent-cycle.sh
+  run_agent_cycle.py
+  stage-login-cdp.mjs
+  stage-login-server.py
+  tests/
 ```
 
-The implementation can adjust file names, but all harness pieces should stay under the instance directory and keep test state under a temporary directory.
-
-## Components
-
-1. **Fake Jira MCP** — expose only the Jira tools the workflow needs, initially `jira_search`, `jira_get_issue`, and `jira_add_comment`. Keep issue data and comments in memory or a disposable local file. Record comments for assertions; reject status transitions and any unimplemented operation. Bind to loopback only.
-2. **Fake memory MCP** — implement the minimal task and learning-memory calls used by the workflow. Start empty per scenario, preserve writes during a scenario, and provide a reset operation. Do not connect to the shared memory server.
-3. **Fake HCC UI** — serve a local app with a two-step username/password login and one or two simple flows. Use accessible labels and roles so the agent can discover semantic locators. Include controlled success and failure states.
-4. **Fake credential profiles** — map aliases such as `viewer` and `org-admin` to dummy identities accepted only by the fake login page. The helper performs login and returns alias/auth/org display metadata, never username/password values. Unknown aliases fail closed. These profiles are fixture data, not Vault entries.
-5. **Browser runtime** — use Chrome DevTools MCP with desktop Chromium. In local mode, access the loopback app directly. In stage mode, route browser traffic through Squid while keeping Jira and memory local.
-6. **Runner wrapper** — create a temporary config overlay pointing Jira and memory MCP URLs to local fakes, set the UI-test workflow and `run_and_exit`, run exactly one cycle, and clean up services and the workspace on exit. Do not mutate the contributor's normal config or persistent memory.
+All fixture services and run state are isolated under the harness or a temporary
+directory. Fake Jira and memory share `fake_services.py` and are exposed over
+loopback by `fake_mcp_server.py`. The optional runner uses a temporary dev-bot
+copy, local Jira/memory fixtures, and either loopback HCC or Stage through
+Squid; it bounds that copy to one cycle without relying on a scheduled-source
+mode. Stage login credentials go only to the local login helper.
 
 ## Scenarios
 
@@ -101,4 +98,9 @@ The implementation can adjust file names, but all harness pieces should stay und
 
 ## Current gaps
 
-The stage runner and local credential helper still need a completed model-driven run against stage. Contributors need Chromium, Chrome DevTools MCP, model credentials, and a stage test account in `UI_TEST_USERNAME`/`UI_TEST_PASSWORD`. The separate local fixture mode uses `UI_HARNESS_USERNAME`/`UI_HARNESS_PASSWORD` and does not test real SSO. The deployed instance still requires its planned Vault-backed multi-profile helper.
+The deployed instance still needs the Vault-backed multi-profile credential
+helper and validated browser-only Squid wiring. Local Stage cycles use fake
+Jira/memory and do not validate real Jira or deployed network configuration.
+Contributors need Chromium, Chrome DevTools MCP, model credentials, and a Stage
+test account in `UI_TEST_USERNAME`/`UI_TEST_PASSWORD`. Local fixture mode uses
+`UI_HARNESS_USERNAME`/`UI_HARNESS_PASSWORD` and does not test real SSO.

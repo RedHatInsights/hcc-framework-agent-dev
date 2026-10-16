@@ -11,7 +11,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 - Work is initiated by a Jira ticket carrying a dedicated UI-testing label. The initial label name is proposed as `hcc-ui-test` and remains configurable.
 - The agent does not depend on Jira workflow changes or status transitions.
 - Standard targets are resolved from configured environment URLs: dev `https://console.dev.redhat.com`, stage `https://console.stage.redhat.com`, and prod `https://console.redhat.com`. Ephemeral-environment tickets must provide the exact target URL.
-- Stage browser traffic may need the corporate Squid proxy at `http://squid.corp.redhat.com:3128`. Configure it for Chromium only; do not replace the pod-wide proxy used by Jira, memory, and agent traffic. Runtime wiring and network reachability remain to be validated.
+- The local Stage harness routes Chromium through the corporate Squid proxy at `http://squid.corp.redhat.com:3128`; Stage model cycles have completed. Deployed browser-only proxy wiring and network reachability still need validation. Do not replace the pod-wide proxy used by Jira, memory, and agent traffic.
 - The baseline is desktop Chromium with exploratory and functional testing and screenshot evidence. Broader browser, mobile, accessibility, or performance testing is included when the ticket requests it.
 - Production testing is read-only by default. When mutation is in scope, use the approved test-account credentials; the signed-in account determines its pre-existing test org, so no separate org ID is required. The ticket should make the need for mutation clear.
 - Test identities are selected by a non-secret profile alias. Credentials remain in Vault-backed Kubernetes Secrets; a credential helper must perform login without returning secret values to the agent. Adding an identity should require adding its secret and profile metadata, not new per-user environment variables or code.
@@ -34,7 +34,7 @@ If a standard environment URL cannot be resolved, access is unavailable, or safe
 5. When a new comment appears after a completed run, assess whether it requests a retest. Start a new run only for `/retest` or a clear natural-language request, and preserve the previous run's history.
 6. Ask in Jira when a required target, access detail, or safety boundary is missing; do not guess these values.
 
-The exact label, unresolved-ticket query, and behavior for ambiguous retest comments are implementation settings to finalize.
+The implementation reads its dedicated label from `BOT_LABEL` and searches unresolved issues with that label. A standalone `/retest` is explicit; other new comments are sent to the agent for semantic assessment, with clarification requested when intent is ambiguous.
 
 ## Test planning and execution
 

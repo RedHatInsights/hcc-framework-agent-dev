@@ -11,7 +11,7 @@ The agent does not deploy applications. Deployments and environment preparation 
 - Work is initiated by a Jira ticket carrying a dedicated UI-testing label. The initial label name is proposed as `hcc-ui-test` and remains configurable.
 - The agent does not depend on Jira workflow changes or status transitions.
 - Standard targets are resolved from configured environment URLs: dev `https://console.dev.redhat.com`, stage `https://console.stage.redhat.com`, and prod `https://console.redhat.com`. Ephemeral-environment tickets must provide the exact target URL.
-- The local Stage harness routes Chromium through the corporate Squid proxy at `http://squid.corp.redhat.com:3128`; Stage model cycles have completed. Deployed browser-only proxy wiring and network reachability still need validation. Do not replace the pod-wide proxy used by Jira, memory, and agent traffic.
+- The local Stage harness routes Chromium through the corporate Squid proxy at `http://squid.corp.redhat.com:3128`; Stage model cycles have completed. The instance deployment template sets a browser-only proxy override to the existing `devbot-proxy`; deployed network reachability still needs validation. Do not replace the pod-wide proxy used by Jira, memory, and agent traffic.
 - The baseline is desktop Chromium with exploratory and functional testing and screenshot evidence. Broader browser, mobile, accessibility, or performance testing is included when the ticket requests it.
 - Production testing is read-only by default. When mutation is in scope, use the approved test-account credentials; the signed-in account determines its pre-existing test org, so no separate org ID is required. The ticket should make the need for mutation clear.
 - Test identities are selected by a non-secret profile alias. Start with `org-admin` and `non-org-admin` for the two basic access contexts. Credentials remain in Vault-backed Kubernetes Secrets; a credential helper resolves the requested alias and performs login without returning secret values to the agent. Add more specific persona aliases as testing needs evolve, by adding secret references and profile metadata rather than per-user environment variables or helper code. The alias names describe intended access; the signed-in UI must still confirm the actual account, org, and role. The default alias and exact Vault/Secret naming convention remain to be set during deployment design.
@@ -26,11 +26,13 @@ The `hcc-platex-services-tenant` `chrome-credentials-secret` ExternalSecret in `
 - `org-admin` can map to the `username` and `password` keys, sourced from the insights-chrome E2E account. Treat its admin role as unverified until the Stage UI confirms it.
 - `non-org-admin` can map to `E2E_NON_ADMIN_USER` and `E2E_NON_ADMIN_PASSWORD`.
 
-The generated Secret belongs to the Konflux tenant namespace, so a runtime agent in another namespace cannot reference that Secret directly. Configure a Vault-backed Secret for the agent's namespace using the same source references. Keep credential values and Vault paths out of agent config; configure only aliases and the helper's permitted Secret/key references. Keep the mapping extensible for future personas.
+The generated Secret belongs to the Konflux tenant namespace, so a runtime agent in another namespace cannot reference that Secret directly. Configure a dedicated Vault-backed Secret for the agent's namespace using the same source references; do not mount the broader `devbot-secrets` bundle into the login helper. The helper reads `<alias>.username` and `<alias>.password` files from its private credential mount, defaulting to `/var/run/ui-test-credentials`. Keep credential values and Vault paths out of agent config. Add personas by adding secret keys, not per-user environment variables or helper code.
 
 ### Deployment design note: credential helper
 
-Deploy the login helper as a sidecar container in the agent's existing pod. Mount the profile Secret read-only into the helper only; do not expose credential values in the bot container's environment or filesystem. The helper resolves the configured alias, performs Stage SSO through the pod's existing Chromium CDP session, and exposes only a narrow `sign_in(alias)` MCP tool on pod loopback. This should require no separate Deployment, Service, or Route. Before wiring the existing `chrome-credentials-secret`, confirm the agent pod uses the `hcc-platex-services-tenant` namespace; otherwise provision the equivalent Vault-backed Secret in the agent namespace.
+The reusable helper lives in `agent/login-helper`. The instance-specific OpenShift template deploys it as a sidecar in the bot's existing pod. Mount the dedicated profile Secret read-only into the helper only; do not expose those profile values in the bot container's environment or filesystem. The helper resolves `<alias>.username` and `<alias>.password` from `UI_TEST_CREDENTIALS_DIR` (default `/var/run/ui-test-credentials`), performs Stage SSO through the pod's existing Chromium CDP session, and exposes only the narrow `sign_in(alias)` MCP tool on pod loopback. A token-protected loopback control route resets the one-submission guard at each new work cycle; the runner removes its reset-token environment variable before starting model tools. The helper needs no separate Deployment, Service, or Route. The existing Konflux `chrome-credentials-secret` is in the Konflux tenant namespace, so provision an equivalent dedicated Vault-backed Secret in the agent namespace.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the template, Secret key contract, and staged rollout checks.
 
 ## Jira intake template
 
@@ -145,9 +147,13 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 - [x] Package the copy-ready Jira intake template with the instance.
 - [ ] Confirm the final Jira label and JQL/query for eligible unresolved tickets.
 - [x] Configure shared URL resolution for standard dev, stage, and prod targets.
-- [ ] Implement Vault-backed test identity aliases and a credential helper that logs in without exposing secret values to the agent.
+- [x] Add the narrow `stage-login.sign_in` tool to the framework allowlist and require its MCP server in the UI-test workflow.
+- [x] Add an instance-specific deployment template for the helper sidecar, loopback health checks, and helper-only credential mount.
+- [x] Reset the one-submission guard between work cycles without exposing a model-callable reset tool.
+- [ ] Add the App Interface resource and provision the dedicated Vault-backed Secret in the selected agent namespace.
 - [ ] Confirm the active account/org context before production mutations.
-- [ ] Add a browser-only proxy override for stage and verify the pod can reach Squid.
+- [x] Add a browser-only proxy override without changing Jira or model proxy settings.
+- [ ] Verify the deployed pod can reach Stage through the configured proxy.
 - [ ] Verify the browser MCP can perform the required UI inspection and interactions.
 - [ ] Verify Jira comment, attachment, and comment-reading capabilities.
 - [x] Implement retest detection for `/retest` and explicit developer requests.

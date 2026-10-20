@@ -53,9 +53,13 @@ harness/
   run-offline.sh
   run-agent-cycle.sh
   run_agent_cycle.py
-  stage-login-cdp.mjs
-  stage-login-server.py
   tests/
+
+agent/login-helper/
+  browser-login.mjs
+  server.py
+  package.json
+  package-lock.json
 ```
 
 All fixture services and run state are isolated under the harness or a temporary
@@ -63,7 +67,8 @@ directory. Fake Jira and memory share `fake_services.py` and are exposed over
 loopback by `fake_mcp_server.py`. The optional runner uses a temporary dev-bot
 copy, local Jira/memory fixtures, and either loopback HCC or Stage through
 Squid; it bounds that copy to one cycle without relying on a scheduled-source
-mode. Stage login credentials go only to the local login helper.
+mode. The reusable Stage login MCP lives with the agent implementation and
+resolves the requested alias inside the helper process.
 
 ## Scenarios
 
@@ -99,9 +104,12 @@ mode. Stage login credentials go only to the local login helper.
 
 ## Current gaps
 
-The deployed instance still needs the Vault-backed multi-profile credential
-helper and validated browser-only Squid wiring. Local Stage cycles use fake
-Jira/memory and do not validate real Jira or deployed network configuration.
-Contributors need Chromium, Chrome DevTools MCP, model credentials, and a Stage
-test account in `UI_TEST_USERNAME`/`UI_TEST_PASSWORD`. Local fixture mode uses
+The repository now contains the alias-aware helper, its instance-specific
+sidecar template, a browser-only proxy setting, and direct helper unit tests.
+It still needs an App Interface resource, a dedicated Vault-backed Secret in
+the selected deployment namespace, and live validation of Stage access and
+account roles. Local Stage cycles use fake Jira/memory and do not validate real
+Jira or deployed network configuration. Contributors need Chromium, Chrome
+DevTools MCP, model credentials, and a Stage test account in
+`UI_TEST_USERNAME`/`UI_TEST_PASSWORD`. Local fixture mode uses
 `UI_HARNESS_USERNAME`/`UI_HARNESS_PASSWORD` and does not test real SSO.

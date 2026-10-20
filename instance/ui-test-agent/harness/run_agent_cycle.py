@@ -22,6 +22,7 @@ HARNESS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = HARNESS_DIR.parents[2]
 DEV_BOT_DIR = REPO_ROOT / "dev-bot"
 INSTANCE_AGENT_DIR = REPO_ROOT / "instance" / "ui-test-agent" / "agent"
+LOGIN_HELPER_DIR = INSTANCE_AGENT_DIR / "login-helper"
 INSTANCE_ID = "ui-test-harness"
 LABEL = "ui-test"
 TARGET_URLS = {
@@ -287,14 +288,14 @@ def _check_stage_login_dependencies(node: str) -> None:
             "await import('playwright'); "
             "await import('@redhat-cloud-services/playwright-test-auth')",
         ],
-        cwd=HARNESS_DIR,
+        cwd=LOGIN_HELPER_DIR,
         capture_output=True,
         text=True,
     )
     if check.returncode:
         raise RuntimeError(
             "Stage login helper dependencies are missing or failed to load. "
-            "Run `npm ci --prefix instance/ui-test-agent/harness` from the repository root."
+            "Run `npm ci --prefix instance/ui-test-agent/agent/login-helper` from the repository root."
         )
 
 
@@ -351,11 +352,6 @@ def _write_runtime(
             "bot-memory": {"type": "http", "url": "http://127.0.0.1:8767/mcp"},
         }
     }
-    if target == "stage":
-        mcp_config["mcpServers"]["stage-login"] = {
-            "type": "http",
-            "url": "http://127.0.0.1:8768/mcp",
-        }
     (runtime / ".mcp.json").write_text(
         json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8"
     )
@@ -376,6 +372,13 @@ def _write_runtime(
     profile = config_repo / "ui-test-agent"
     profile.mkdir(parents=True)
     shutil.copytree(INSTANCE_AGENT_DIR, profile / "agent")
+    if target == "local":
+        instance_mcp_path = profile / "agent" / "mcp.json"
+        instance_mcp = json.loads(instance_mcp_path.read_text(encoding="utf-8"))
+        instance_mcp.get("mcpServers", {}).pop("stage-login", None)
+        instance_mcp_path.write_text(
+            json.dumps(instance_mcp, indent=2) + "\n", encoding="utf-8"
+        )
     git = shutil.which("git")
     if not git:
         raise RuntimeError("git is required to create the disposable config overlay")
@@ -813,7 +816,7 @@ def main():
             }
             login, log = _start(
                 "stage-login",
-                [str(python), str(HARNESS_DIR / "stage-login-server.py")],
+                [str(python), str(LOGIN_HELPER_DIR / "server.py")],
                 REPO_ROOT,
                 login_env,
                 artifacts,

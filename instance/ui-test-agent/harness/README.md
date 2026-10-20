@@ -97,7 +97,7 @@ To check the real Stage login helper and its signed-in marker without starting
 Jira, memory, or the model, install the Node dependencies once and run:
 
 ```sh
-npm ci --prefix instance/ui-test-agent/harness
+npm ci --prefix instance/ui-test-agent/agent/login-helper
 op run --env-file "$HOME/env/claude.env" -- \
   ./instance/ui-test-agent/harness/run-stage-login-smoke.sh
 ```
@@ -141,7 +141,7 @@ the harness does not depend on a particular `dev-bot` scheduled-source mode.
 Install the stage login helper dependencies and Chrome DevTools MCP once:
 
 ```sh
-npm ci --prefix instance/ui-test-agent/harness
+npm ci --prefix instance/ui-test-agent/agent/login-helper
 npm install --global chrome-devtools-mcp
 ```
 
@@ -150,7 +150,7 @@ Configure the stage test account, then run one synthetic Jira issue:
 ```sh
 export UI_TEST_USERNAME
 export UI_TEST_PASSWORD
-./instance/ui-test-agent/harness/run-agent-cycle.sh --allow-model
+./instance/ui-test-agent/harness/run-agent-cycle.sh --target stage --profile org-admin --allow-model
 ```
 
 For this team's direct Vertex setup, the runner reads only the model-provider
@@ -164,7 +164,7 @@ that is how you provide the UI test account credentials:
 ```sh
 op run --env-file "$HOME/env/claude.env" -- \
   ./instance/ui-test-agent/harness/run-agent-cycle.sh \
-  --profile widget-exploration --scenario dashboard-widgets --allow-model
+  --profile org-admin --scenario dashboard-widgets --allow-model
 ```
 
 The `dashboard-widgets` scenario asks the agent to explore the dashboard and
@@ -175,19 +175,27 @@ then drafts a full Markdown report from recorded discovery notes without
 mutating widgets. Omit `--scenario` to run the default sign-in/dashboard
 request.
 
-Use a non-secret label with `--profile <alias>`; it defaults to `viewer`.
-In stage mode the label does not select or verify credentials: the account is
-the identity in `UI_TEST_USERNAME` and `UI_TEST_PASSWORD`, and its visible
-account/org role should be checked in the console.
+Use the non-secret persona alias with `--profile <alias>`; it defaults to
+`viewer`. In stage mode, set it to the alias for the test account supplied through
+`UI_TEST_USERNAME` and `UI_TEST_PASSWORD`; the visible account/org role should
+still be checked in the console.
 `UI_TEST_USERNAME` and `UI_TEST_PASSWORD` are read only by the local
-stage-login helper. It uses the Red Hat `@redhat-cloud-services/playwright-test-auth`
+stage-login helper. The helper accepts the requested profile alias as its tool
+argument and checks it against the locally selected alias; it never accepts
+credential values as tool arguments. The reusable implementation lives under
+`../agent/login-helper` and can instead read `<alias>.username` and
+`<alias>.password` files from `UI_TEST_CREDENTIALS_DIR` when deployed. It uses
+the Red Hat `@redhat-cloud-services/playwright-test-auth`
 package against the harness's existing Chromium session, clears the sign-in
 fields after the attempt when possible, and never returns credentials to the
 model, bot process, Jira, report, or memory. The package blocks TrustArc
 requests before the helper reloads Stage, then performs the standard Red Hat
-SSO flow. The helper allows at most one password submission per cycle and
-reports authentication only when the Insights Chrome `User Avatar` button is
-visible after Stage loads. This is the same signed-in marker used by the
+SSO flow. The harness runs one helper process per cycle. After an unsuccessful
+password submission, that process blocks further submissions; deployment must
+restart the helper at the next run boundary or add a cycle reset. A successful
+login clears the guard for later session checks. The helper reports
+authentication only when the Insights Chrome `User Avatar` button is visible
+after Stage loads. This is the same signed-in marker used by the
 Insights Chrome Playwright auth tests. A redirect to Stage without that marker
 is unconfirmed and fails the harness check. The agent still inspects the
 visible account/org context; the helper does not establish the account's role.

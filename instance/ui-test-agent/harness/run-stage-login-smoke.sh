@@ -2,6 +2,7 @@
 set -eu
 
 HARNESS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+LOGIN_HELPER_DIR=$(CDPATH= cd -- "$HARNESS_DIR/../agent/login-helper" && pwd)
 NODE=$(command -v node || true)
 if [ -z "$NODE" ]; then
   echo "Node.js is required. Install Node.js 22 or newer." >&2
@@ -30,9 +31,9 @@ if [ -z "$CHROME_BIN" ] || [ ! -x "$CHROME_BIN" ]; then
   exit 1
 fi
 
-if ! (cd "$HARNESS_DIR" && "$NODE" --input-type=module -e \
+if ! (cd "$LOGIN_HELPER_DIR" && "$NODE" --input-type=module -e \
   "await import('playwright'); await import('@redhat-cloud-services/playwright-test-auth')"); then
-  echo "Stage login dependencies are missing. Run: npm ci --prefix instance/ui-test-agent/harness" >&2
+  echo "Stage login dependencies are missing. Run: npm ci --prefix instance/ui-test-agent/agent/login-helper" >&2
   exit 1
 fi
 
@@ -96,7 +97,7 @@ fi
 
 echo "Running the Stage sign-in and signed-in marker check."
 if RESULT=$(UI_TEST_TARGET_URL=https://console.stage.redhat.com "$NODE" \
-  "$HARNESS_DIR/stage-login-cdp.mjs"); then
+  "$LOGIN_HELPER_DIR/browser-login.mjs"); then
   printf '%s\n' "$RESULT"
 else
   echo "Stage login helper failed." >&2

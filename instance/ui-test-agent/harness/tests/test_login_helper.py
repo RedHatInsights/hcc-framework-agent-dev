@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from unittest.mock import patch
+
+HELPER_PATH = (
+    Path(__file__).resolve().parents[2] / "agent" / "login-helper" / "server.py"
+)
+ENVIRONMENT_KEYS = (
+    "UI_TEST_USERNAME",
+    "UI_TEST_PASSWORD",
+    "UI_HARNESS_PROFILE",
+    "UI_TEST_CREDENTIALS_DIR",
+    "UI_TEST_LOGIN_HELPER_CONTROL_TOKEN",
+)
+
+
+class FakeFastMCP:
+    def __init__(self, _name: str):
+        self.tools = []
+
+    def custom_route(self, *_args, **_kwargs):
+        return lambda function: function
+
+    def tool(self):
+        def register(function):
+            self.tools.append(function)
+            return function
+
+        return register
+
+
+def load_helper_module():
+    """Import the helper with small MCP/Starlette stubs for offline testing."""
+    mcp = ModuleType("mcp")
+    mcp.__path__ = []
+    mcp_server = ModuleType("mcp.server")
+    mcp_server.__path__ = []
+    fastmcp = ModuleType("mcp.server.fastmcp")
+    fastmcp.FastMCP = FakeFastMCP
+    starlette = ModuleType("starlette")
+    starlette.__path__ = []
+    requests = ModuleType("starlette.requests")
+    requests.Request = type("Request", (), {})
+    responses = ModuleType("starlette.responses")
+    responses.JSONResponse = type("JSONResponse", (), {})
+
+    stubs = {
+        "mcp": mcp,
+        "mcp.server": mcp_server,
+        "mcp.server.fastmcp": fastmcp,
+        "starlette": starlette,
+        "starlette.requests": requests,
+        "starlette.responses": responses,
+    }
+    saved_environment = {name: os.environ.get(name) for name in ENVIRONMENT_KEYS}
+    for name in ENVIRONMENT_KEYS:
+        os.environ.pop(name, None)
+
+    module_name = "ui_test_login_helper_under_test"
+    try:
+        with patch.dict(sys.modules, stubs):
+            spec = importlib.util.spec_from_file_location(module_name, HELPER_PATH)
+            assert spec and spec.loader
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            try:
+                spec.loader.exec_module(module)
+            finally:
+                sys.modules.pop(module_name, None)
+            return module
+    finally:
+        for name, value in saved_environment.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+class LoginHelperTests(unittest.TestCase):
+    def setUp(self):
+        self.helper = load_helper_module()
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.helper.CREDENTIALS_DIR = Path(self.tempdir.name)
+
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def write_credentials(
+        self, alias="org-admin", username="test-user", password="secret-pass"
+    ):
+        (self.helper.CREDENTIALS_DIR / f"{alias}.username").write_text(
+            f"{username}\n", encoding="utf-8"
+        )
+        (self.helper.CREDENTIALS_DIR / f"{alias}.password").write_text(
+            f"{password}\n", encoding="utf-8"
+        )
+
+    def test_resolves_a_complete_file_profile_and_strips_newlines(self):
+        self.write_credentials()
+
+        self.assertEqual(
+            self.helper._credentials_for("org-admin"),
+            ("test-user", "secret-pass"),
+        )
+        self.assertTrue(self.helper._is_configured_alias("org-admin"))
+
+    def test_rejects_invalid_unknown_and_incomplete_profiles(self):
+        self.write_credentials(alias="viewer", password="")
+
+        self.assertIsNone(self.helper._credentials_for("../org-admin"))
+        self.assertIsNone(self.helper._credentials_for("unknown"))
+        self.assertIsNone(self.helper._credentials_for("viewer"))
+        self.assertFalse(self.helper._is_configured_alias("../org-admin"))
+
+    def test_environment_profile_requires_matching_alias_and_both_values(self):
+        self.helper.USERNAME = "env-user"
+        self.helper.PASSWORD = "env-pass"
+        self.helper.HARNESS_ALIAS = "viewer"
+
+        self.assertEqual(
+            self.helper._credentials_for("viewer"), ("env-user", "env-pass")
+        )
+        self.assertIsNone(self.helper._credentials_for("org-admin"))
+
+        self.helper.PASSWORD = ""
+        self.assertIsNone(self.helper._credentials_for("viewer"))
+
+    def test_sign_in_passes_credentials_only_to_child_and_sanitizes_its_output(self):
+        self.write_credentials()
+        child_output = json.dumps(
+            {
+                "status": "authenticated",
+                "credential_submission_started": True,
+                "message": "secret-pass test-user",
+                "password": "secret-pass",
+            }
+        )
+        completed = SimpleNamespace(returncode=0, stdout=child_output, stderr="")
+
+        with (
+            patch.object(self.helper.shutil, "which", return_value="/usr/bin/node"),
+            patch.object(self.helper.subprocess, "run", return_value=completed) as run,
+        ):
+            result = self.helper.sign_in("org-admin")
+
+        passed_environment = run.call_args.kwargs["env"]
+        self.assertEqual(passed_environment["UI_TEST_USERNAME"], "test-user")
+        self.assertEqual(passed_environment["UI_TEST_PASSWORD"], "secret-pass")
+        self.assertNotIn("JIRA_TOKEN", passed_environment)
+        self.assertEqual(result["status"], "authenticated")
+        self.assertEqual(result["profile_alias"], "org-admin")
+        self.assertNotIn("secret-pass", json.dumps(result))
+        self.assertNotIn("test-user", json.dumps(self.helper.attempts))
+        self.assertNotIn("secret-pass", json.dumps(self.helper.attempts))
+
+    def test_failed_submission_blocks_another_password_attempt(self):
+        self.write_credentials()
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"status": "authentication_failed"}),
+            stderr="",
+        )
+
+        with (
+            patch.object(self.helper.shutil, "which", return_value="/usr/bin/node"),
+            patch.object(self.helper.subprocess, "run", return_value=completed) as run,
+        ):
+            first = self.helper.sign_in("org-admin")
+            second = self.helper.sign_in("org-admin")
+
+        self.assertEqual(first["status"], "authentication_failed")
+        self.assertEqual(second["status"], "blocked")
+        self.assertEqual(run.call_count, 1)
+
+    def test_unknown_alias_is_not_echoed_or_sent_to_node(self):
+        with (
+            patch.object(self.helper.shutil, "which", return_value="/usr/bin/node"),
+            patch.object(self.helper.subprocess, "run") as run,
+        ):
+            result = self.helper.sign_in("private-alias-name")
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertNotIn("profile_alias", result)
+        self.assertNotIn("private-alias-name", json.dumps(result))
+        self.assertNotIn("private-alias-name", json.dumps(self.helper.attempts))
+        run.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

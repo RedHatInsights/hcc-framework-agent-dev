@@ -13,6 +13,7 @@ requires:
     - bot-memory
     - mcp-atlassian
     - chrome-devtools
+    - stage-login
   env_vars:
     - BOT_LABEL
     - BOT_INSTANCE_ID

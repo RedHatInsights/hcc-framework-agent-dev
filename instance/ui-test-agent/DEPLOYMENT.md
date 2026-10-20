@@ -24,11 +24,12 @@ the deployed pod.
 ## Credential Secret
 
 Create a dedicated Vault-backed Kubernetes Secret in the same namespace as the
-bot Deployment. The template defaults to the Secret name
-`ui-test-agent-credentials`; override `UI_TEST_CREDENTIALS_SECRET` if needed.
-The helper mounts it read-only at `/var/run/ui-test-credentials`. The bot
-container does not mount this volume or receive the profile values as
-environment variables.
+bot Deployment. The App Interface namespace config references
+`app-interface/platform-frontend-ai-dev/stage/ui-test-agent-credentials`
+(initial Vault version `1`) and creates the Kubernetes Secret
+`ui-test-agent-credentials`. The helper mounts it read-only at
+`/var/run/ui-test-credentials`. The bot container does not mount this volume or
+receive the profile values as environment variables.
 
 Secret keys are file names consumed by the helper:
 
@@ -43,21 +44,28 @@ Also provide `helper-control-token`, a random value used only to authorize the
 loopback cycle-reset route. Kubernetes passes it to the helper sidecar and the
 bot runner as environment variables; the runner removes its copy before
 starting model tools. The token is excluded from the helper's profile-file
-mount.
+mount. Set these Vault fields from the existing `insights-chrome` Stage
+credentials: `org-admin.username` from `CHROME_E2E_USERNAME`,
+`org-admin.password` from `CHROME_E2E_PASSWORD`, `non-org-admin.username` from
+`E2E_NON_ADMIN_USER`, and `non-org-admin.password` from
+`E2E_NON_ADMIN_PASSWORD`. Generate `helper-control-token` separately; do not
+reuse a login credential.
 
-Map these to the existing insights-chrome Stage credentials in Vault. The
-Konflux `chrome-credentials-secret` is in the Konflux tenant namespace and
-cannot be mounted directly by this agent. Provision an equivalent dedicated
-Secret in the agent namespace; do not copy credential values into this repo,
-Jira, or model configuration.
+The Konflux `chrome-credentials-secret` is in the Konflux tenant namespace and
+cannot be mounted directly by this agent. Provision the referenced App
+Interface Vault secret with the field mapping above; the namespace reference
+expects its first version to be `1`. Do not copy credential values into this
+repo, Jira, or model configuration. If the Vault secret already exists at a
+different version, update the namespace reference to that version.
 
 ## Deployment handoff
 
-The repository template and framework wiring are prepared. Deployment still
-needs an App Interface resource entry pointing to this template, plus the
-Vault-backed Secret in the selected runtime namespace. The current quality
-monitor deployment uses `platform-frontend-ai-dev-stage`; confirm that the UI
-testing agent should share that namespace before provisioning its Secret.
+The repository template, framework wiring, paused App Interface Stage resource,
+and namespace reference for the dedicated Secret are prepared. The Vault data
+must still be provisioned at the referenced path before the resource can be
+reconciled. The current resource targets
+`platform-frontend-ai-dev-stage`, where the quality monitor shares the proxy
+and memory server.
 
 Keep the first deployment paused (`BOT_REPLICAS: '0'` and
 `KEDA_DESIRED_REPLICAS: '0'`) while validating:

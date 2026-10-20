@@ -150,7 +150,8 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 - [x] Add the narrow `stage-login.sign_in` tool to the framework allowlist and require its MCP server in the UI-test workflow.
 - [x] Add an instance-specific deployment template for the helper sidecar, loopback health checks, and helper-only credential mount.
 - [x] Reset the one-submission guard between work cycles without exposing a model-callable reset tool.
-- [ ] Add the App Interface resource and provision the dedicated Vault-backed Secret in the selected agent namespace.
+- [x] Add a paused Stage App Interface resource and namespace reference for the dedicated Vault-backed Secret.
+- [ ] Provision the Vault secret at the referenced path with org-admin, non-org-admin, and helper-control-token fields.
 - [ ] Confirm the active account/org context before production mutations.
 - [x] Add a browser-only proxy override without changing Jira or model proxy settings.
 - [ ] Verify the deployed pod can reach Stage through the configured proxy.

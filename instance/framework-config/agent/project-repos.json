@@ -108,6 +108,10 @@
     "url": "https://github.com/platex-rehor-bot/user-preferences-frontend.git",
     "upstream": "https://github.com/RedHatInsights/user-preferences-frontend.git"
   },
+  "konflux-pipelines": {
+    "url": "https://github.com/platex-rehor-bot/konflux-pipelines.git",
+    "upstream": "https://github.com/RedHatInsights/konflux-pipelines.git"
+  },
   "caddy-ubi": {
     "url": "https://gitlab.cee.redhat.com/platform-experience-services-bot/caddy-ubi.git",
     "upstream": "https://gitlab.cee.redhat.com/insights-platform/caddy-ubi.git",

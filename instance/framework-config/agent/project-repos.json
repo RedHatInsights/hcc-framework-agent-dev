@@ -113,6 +113,11 @@
     "upstream": "https://gitlab.cee.redhat.com/insights-platform/caddy-ubi.git",
     "host": "gitlab"
   },
+  "konflux": {
+    "url": "https://gitlab.cee.redhat.com/platform-experience-services-bot/konflux-release-data.git",
+    "upstream": "https://gitlab.cee.redhat.com/releng/konflux-release-data.git",
+    "host": "gitlab"
+  },
   "unleash-proxy": {
     "url": "https://gitlab.cee.redhat.com/platform-experience-services-bot/unleash-proxy.git",
     "upstream": "https://gitlab.cee.redhat.com/automation-analytics/unleash-proxy.git",
@@ -189,6 +194,10 @@
   "landing-page-frontend": {
     "url": "https://github.com/platex-rehor-bot/landing-page-frontend.git",
     "upstream": "https://github.com/RedHatInsights/landing-page-frontend.git"
+  },
+  "lightwell-frontend": {
+    "url": "https://github.com/platex-rehor-bot/content-sources-frontend.git",
+    "upstream": "https://github.com/content-services/content-sources-frontend.git"
   },
   "sources-ui": {
     "url": "https://github.com/platex-rehor-bot/sources-ui.git",

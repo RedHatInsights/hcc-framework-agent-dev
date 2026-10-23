@@ -1,18 +1,21 @@
-"""Alias-based loopback HTTP bridge for the existing Chromium session."""
+"""Alias-based loopback HTTP bridge for the Stage Chromium session."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import hmac
 import json
 import os
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import TypedDict
+from urllib.error import URLError
+from urllib.request import ProxyHandler, build_opener
 
 from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
@@ -22,7 +25,8 @@ TARGET_URL = "https://console.stage.redhat.com"
 LOGIN_SCRIPT = Path(__file__).with_name("browser-login.mjs")
 PORT = 8768
 mcp = FastMCP("stage-login-helper")
-password_submission_attempted = False
+password_submission_at: float | None = None
+PASSWORD_RETRY_COOLDOWN_SECONDS = 300
 login_lock = threading.Lock()
 USERNAME = os.environ.pop("UI_TEST_USERNAME", "")
 PASSWORD = os.environ.pop("UI_TEST_PASSWORD", "")
@@ -30,7 +34,6 @@ HARNESS_ALIAS = os.environ.pop("UI_HARNESS_PROFILE", "")
 CREDENTIALS_DIR = Path(
     os.environ.pop("UI_TEST_CREDENTIALS_DIR", "") or "/var/run/ui-test-credentials"
 )
-CONTROL_TOKEN = os.environ.pop("UI_TEST_LOGIN_HELPER_CONTROL_TOKEN", "")
 ALIAS_PATTERN = re.compile(r"[A-Za-z0-9:_-]{1,80}\Z")
 PUBLIC_MESSAGES = {
     "blocked": "The login helper could not prepare or access Stage sign-in.",
@@ -133,7 +136,9 @@ async def state(_request: Request) -> JSONResponse:
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health(_request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok"})
+    if await asyncio.to_thread(_chromium_cdp_ready):
+        return JSONResponse({"status": "ok"})
+    return JSONResponse({"status": "browser_unavailable"}, status_code=503)
 
 
 @mcp.custom_route("/sign-in", methods=["POST"])
@@ -164,33 +169,22 @@ async def sign_in_endpoint(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
-@mcp.custom_route("/__internal/cycle-start", methods=["POST"])
-async def reset_for_cycle(_request: Request) -> JSONResponse:
-    """Clear the one-password-attempt guard between agent work cycles."""
-    authorization = _request.headers.get("authorization", "")
-    if not CONTROL_TOKEN or not hmac.compare_digest(
-        authorization, f"Bearer {CONTROL_TOKEN}"
-    ):
-        return JSONResponse({"status": "unauthorized"}, status_code=401)
-
-    global password_submission_attempted
-    password_submission_attempted = False
-    attempts.clear()
-    return JSONResponse({"status": "ok"})
-
-
 def _sign_in(alias: str) -> LoginResult:
     """Sign in with a configured persona alias, never accepting credentials.
 
-    The helper resolves the alias from its private credential source. A failed
-    password submission cannot be repeated by this helper process.
+    The helper resolves the alias from its private credential source. Password
+    submissions are rate-limited to prevent rapid model retries.
     """
-    global password_submission_attempted
+    global password_submission_at
+    now = time.monotonic()
     credentials = _credentials_for(alias)
-    if password_submission_attempted:
+    if (
+        password_submission_at is not None
+        and now - password_submission_at < PASSWORD_RETRY_COOLDOWN_SECONDS
+    ):
         result = {
             "status": "blocked",
-            "message": "A password submission already ran; restart the login helper before trying again.",
+            "message": "A password was submitted recently. Stop this request and continue on a later cycle.",
         }
     elif credentials is None:
         result = {
@@ -230,13 +224,15 @@ def _sign_in(alias: str) -> LoginResult:
                 )
                 public_payload = _public_login_result(payload)
                 status = public_payload.get("status")
-                password_submission_attempted = bool(
+                submission_started = bool(
                     public_payload.pop("credential_submission_started", False)
                 )
                 if status in {"authenticated", "already_authenticated"}:
-                    password_submission_attempted = False
+                    password_submission_at = None
                 elif status == "authentication_failed":
-                    password_submission_attempted = True
+                    password_submission_at = time.monotonic()
+                elif submission_started:
+                    password_submission_at = time.monotonic()
                 valid_status = (
                     isinstance(payload, dict)
                     and isinstance(payload.get("status"), str)
@@ -245,13 +241,13 @@ def _sign_in(alias: str) -> LoginResult:
                 if completed.returncode == 0 and valid_status:
                     result = public_payload
                 else:
-                    password_submission_attempted = True
+                    password_submission_at = time.monotonic()
                     result = {
                         "status": "blocked",
                         "message": "The login helper could not complete the stage sign-in flow.",
                     }
             except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
-                password_submission_attempted = True
+                password_submission_at = time.monotonic()
                 result = {
                     "status": "blocked",
                     "message": "The login helper could not complete the stage sign-in flow.",
@@ -270,6 +266,93 @@ def sign_in(alias: str) -> LoginResult:
         return _sign_in(alias)
 
 
+def _chromium_cdp_ready() -> bool:
+    opener = build_opener(ProxyHandler({}))
+    try:
+        with opener.open("http://127.0.0.1:9222/json/version", timeout=1) as response:
+            return response.status == 200
+    except (OSError, URLError):
+        return False
+
+
+def _find_chromium() -> str | None:
+    browser_path = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/opt/pw-browsers"))
+    if not browser_path.is_dir():
+        return None
+    return next(
+        (
+            str(candidate)
+            for candidate in sorted(browser_path.rglob("chrome"))
+            if candidate.is_file() and os.access(candidate, os.X_OK)
+        ),
+        None,
+    )
+
+
+def _start_chromium(profile_dir: Path | None = None) -> subprocess.Popen | None:
+    """Start Chromium with the instance proxy, without changing shared presets."""
+    if _chromium_cdp_ready():
+        return None
+
+    chrome = _find_chromium()
+    if not chrome:
+        raise RuntimeError("The login helper could not find Playwright Chromium.")
+    proxy = os.environ.get("UI_BROWSER_PROXY", "").strip()
+    if not proxy:
+        raise RuntimeError(
+            "UI_BROWSER_PROXY must be set before the helper starts Chromium."
+        )
+
+    command = [
+        chrome,
+        "--headless",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--no-first-run",
+        "--disable-sync",
+        "--disable-extensions",
+        "--disable-popup-blocking",
+        "--remote-debugging-port=9222",
+        "--remote-debugging-address=127.0.0.1",
+        "--remote-allow-origins=*",
+        "--ignore-certificate-errors",
+        "--host-resolver-rules=MAP consent.trustarc.com 127.0.0.1",
+        "--proxy-bypass-list=localhost;127.0.0.1;::1",
+        f"--user-data-dir={profile_dir / 'profile' if profile_dir else '/tmp/ui-test-chromium-profile'}",
+        f"--proxy-server={proxy}",
+    ]
+
+    browser_env = {
+        key: os.environ[key]
+        for key in ("HOME", "LANG", "LC_ALL", "PATH", "PLAYWRIGHT_BROWSERS_PATH")
+        if os.environ.get(key)
+    }
+    if profile_dir:
+        browser_env["HOME"] = str(profile_dir)
+    process = subprocess.Popen(
+        command,
+        env=browser_env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(
+                "Chromium exited before its DevTools endpoint became ready."
+            )
+        if _chromium_cdp_ready():
+            return process
+        time.sleep(1)
+
+    process.terminate()
+    process.wait(timeout=5)
+    raise RuntimeError("Chromium DevTools did not become ready within 60 seconds.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
@@ -279,13 +362,23 @@ def main() -> None:
         parser.error("stage login helper may bind only to loopback")
     import uvicorn
 
-    uvicorn.run(
-        mcp.streamable_http_app(),
-        host=args.host,
-        port=args.port,
-        access_log=False,
-        log_level="warning",
-    )
+    # Keep the browser profile and session cookies in the helper's ephemeral /tmp mount.
+    profile_dir = Path(tempfile.mkdtemp(prefix="ui-test-chromium-", dir="/tmp"))
+    browser = None
+    try:
+        browser = _start_chromium(profile_dir)
+        uvicorn.run(
+            mcp.streamable_http_app(),
+            host=args.host,
+            port=args.port,
+            access_log=False,
+            log_level="warning",
+        )
+    finally:
+        if browser and browser.poll() is None:
+            browser.terminate()
+            browser.wait(timeout=10)
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

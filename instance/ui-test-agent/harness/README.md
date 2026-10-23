@@ -190,10 +190,10 @@ package against the harness's existing Chromium session, clears the sign-in
 fields after the attempt when possible, and never returns credentials to the
 model, bot process, Jira, report, or memory. The package blocks TrustArc
 requests before the helper reloads Stage, then performs the standard Red Hat
-SSO flow. The harness runs one helper process per cycle. After an unsuccessful
-password submission, that process blocks further submissions; deployment must
-restart the helper at the next run boundary or add a cycle reset. A successful
-login clears the guard for later session checks. The helper reports
+SSO flow. The harness runs one helper process per cycle. The helper blocks rapid
+repeat submissions for five minutes; deployment uses the same cooldown as the
+default bot polling interval, then later cycles can retry without a reset hook.
+A successful login clears the cooldown for later session checks. The helper reports
 authentication only when the Insights Chrome `User Avatar` button is visible
 after Stage loads. This is the same signed-in marker used by the
 Insights Chrome Playwright auth tests. A redirect to Stage without that marker

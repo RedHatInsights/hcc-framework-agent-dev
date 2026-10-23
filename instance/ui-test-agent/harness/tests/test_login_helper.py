@@ -19,7 +19,6 @@ ENVIRONMENT_KEYS = (
     "UI_TEST_PASSWORD",
     "UI_HARNESS_PROFILE",
     "UI_TEST_CREDENTIALS_DIR",
-    "UI_TEST_LOGIN_HELPER_CONTROL_TOKEN",
 )
 
 
@@ -195,6 +194,28 @@ class LoginHelperTests(unittest.TestCase):
         self.assertEqual(second["status"], "blocked")
         self.assertEqual(run.call_count, 1)
 
+    def test_failed_submission_cooldown_expires_for_a_later_cycle(self):
+        self.write_credentials()
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"status": "authentication_failed"}),
+            stderr="",
+        )
+
+        with (
+            patch.object(self.helper.shutil, "which", return_value="/usr/bin/node"),
+            patch.object(self.helper.subprocess, "run", return_value=completed) as run,
+            patch.object(
+                self.helper.time, "monotonic", side_effect=[100, 101, 401, 402]
+            ),
+        ):
+            first = self.helper.sign_in("org-admin")
+            second = self.helper.sign_in("org-admin")
+
+        self.assertEqual(first["status"], "authentication_failed")
+        self.assertEqual(second["status"], "authentication_failed")
+        self.assertEqual(run.call_count, 2)
+
     def test_unknown_alias_is_not_echoed_or_sent_to_node(self):
         with (
             patch.object(self.helper.shutil, "which", return_value="/usr/bin/node"),
@@ -219,6 +240,13 @@ class LoginHelperTests(unittest.TestCase):
         self.assertEqual(response.content, result)
         sign_in.assert_called_once_with("org-admin")
 
+    def test_health_requires_a_live_chromium_endpoint(self):
+        with patch.object(self.helper, "_chromium_cdp_ready", return_value=False):
+            response = asyncio.run(self.helper.health(FakeRequest(b"")))
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.content, {"status": "browser_unavailable"})
+
     def test_http_endpoint_rejects_credentials_and_extra_fields(self):
         request = FakeRequest(
             b'{"alias":"org-admin","password":"must-not-be-accepted"}'
@@ -237,6 +265,46 @@ class LoginHelperTests(unittest.TestCase):
                 response = asyncio.run(self.helper.sign_in_endpoint(FakeRequest(body)))
                 self.assertEqual(response.status_code, 400)
                 self.assertEqual(response.content["status"], "blocked")
+
+    def test_chromium_is_not_started_when_shared_cdp_is_already_ready(self):
+        with (
+            patch.object(self.helper, "_chromium_cdp_ready", return_value=True),
+            patch.object(self.helper.subprocess, "Popen") as popen,
+        ):
+            process = self.helper._start_chromium()
+
+        self.assertIsNone(process)
+        popen.assert_not_called()
+
+    def test_chromium_uses_only_the_helper_browser_proxy(self):
+        process = SimpleNamespace(poll=lambda: None)
+        with (
+            patch.object(self.helper, "_chromium_cdp_ready", side_effect=[False, True]),
+            patch.object(self.helper, "_find_chromium", return_value="/tmp/chrome"),
+            patch.object(
+                self.helper.subprocess, "Popen", return_value=process
+            ) as popen,
+            patch.dict(os.environ, {"UI_BROWSER_PROXY": "http://proxy:3128"}),
+        ):
+            started = self.helper._start_chromium()
+
+        self.assertIs(started, process)
+        command = popen.call_args.args[0]
+        self.assertIn("--proxy-server=http://proxy:3128", command)
+        self.assertEqual(popen.call_args.kwargs["env"].get("UI_BROWSER_PROXY"), None)
+        self.assertNotIn("UI_TEST_USERNAME", popen.call_args.kwargs["env"])
+
+    def test_chromium_does_not_start_without_a_browser_proxy(self):
+        with (
+            patch.object(self.helper, "_chromium_cdp_ready", return_value=False),
+            patch.object(self.helper, "_find_chromium", return_value="/tmp/chrome"),
+            patch.object(self.helper.subprocess, "Popen") as popen,
+            patch.dict(os.environ, {"UI_BROWSER_PROXY": ""}),
+            self.assertRaisesRegex(RuntimeError, "UI_BROWSER_PROXY"),
+        ):
+            self.helper._start_chromium()
+
+        popen.assert_not_called()
 
 
 if __name__ == "__main__":

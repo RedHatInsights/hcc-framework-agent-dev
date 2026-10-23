@@ -56,7 +56,7 @@ objects:
 #
 # Shared infrastructure (proxy, memory-server, secrets) is deployed by
 # the platform-frontend-ai-dev template in the same namespace.
-# The sidecar shares the pod network namespace with Chromium, but its
+# The helper sidecar starts Chromium in the shared pod network namespace; its
 # credential volume is mounted only into the helper container.
 # This template creates:
 #   1. Bot Deployment (name controlled by BOT_NAME parameter)
@@ -93,6 +93,13 @@ objects:
         containers:
         - name: bot
           image: ${BOT_IMAGE}:${IMAGE_TAG}
+          # HCC-local wrapper waits for the helper-owned Chromium before
+          # starting the unchanged shared bot entrypoint and browser preset.
+          command:
+          - tini
+          - --
+          - /bin/bash
+          - /home/botuser/app/deploy/ui-test-agent/start-bot.sh
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
@@ -109,15 +116,8 @@ objects:
             value: http://devbot-memory-server:8080/health
           - name: BOT_MEMORY_HEALTH_TIMEOUT
             value: "120"
-          - name: BOT_STARTUP_HEALTH_URL
+          - name: UI_TEST_LOGIN_HELPER_HEALTH_URL
             value: http://127.0.0.1:8768/health
-          - name: BOT_CYCLE_START_URL
-            value: http://127.0.0.1:8768/__internal/cycle-start
-          - name: BOT_CYCLE_START_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: ${UI_TEST_CREDENTIALS_SECRET}
-                key: helper-control-token
           # Vertex AI — auth proxied through proxy container
           - name: CLAUDE_CODE_SKIP_VERTEX_AUTH
             value: "true"
@@ -217,6 +217,8 @@ objects:
               ephemeral-storage: 8Gi
         - name: stage-login-helper
           image: ${BOT_IMAGE}:${IMAGE_TAG}
+          # Keep the Stage browser proxy setting local to this sidecar so bot,
+          # Jira, and model traffic retain their existing proxy configuration.
           command:
           - /home/botuser/app/.venv/bin/python
           - /home/botuser/app/instance/ui-test-agent/agent/login-helper/server.py
@@ -225,11 +227,8 @@ objects:
           - --port
           - "8768"
           env:
-          - name: UI_TEST_LOGIN_HELPER_CONTROL_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: ${UI_TEST_CREDENTIALS_SECRET}
-                key: helper-control-token
+          - name: UI_BROWSER_PROXY
+            value: http://devbot-proxy:3128
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
@@ -250,7 +249,7 @@ objects:
               - /usr/bin/curl
               - -fsS
               - http://127.0.0.1:8768/health
-            failureThreshold: 30
+            failureThreshold: 60
             periodSeconds: 2
           readinessProbe:
             exec:
@@ -268,11 +267,13 @@ objects:
             periodSeconds: 15
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 1Gi
+              ephemeral-storage: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+              ephemeral-storage: 2Gi
         volumes:
         - name: ui-test-credentials
           secret:

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '@redhat-cloud-services/playwright-test-auth';
 
 /**
  * GOOD EXAMPLE - No anti-patterns

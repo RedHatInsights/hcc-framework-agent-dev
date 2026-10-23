@@ -97,6 +97,14 @@ class TestGoodRepoIntegration:
         assert "toBeVisible" in content
         assert "waitForSelector" in content or "waitForResponse" in content
 
+    def test_good_repo_uses_auth_package(self, good_repo):
+        """Good repo should import from playwright-test-auth, not @playwright/test."""
+        test_file = good_repo / "login.spec.ts"
+        content = test_file.read_text()
+
+        assert "@redhat-cloud-services/playwright-test-auth" in content
+        assert "from '@playwright/test'" not in content
+
 
 class TestBadRepoIntegration:
     """Integration tests against fixture repo with anti-patterns."""
@@ -165,6 +173,17 @@ class TestBadRepoIntegration:
         missing_assertion = anti_patterns["anti_patterns"]["missing_assertions"]
         assert missing_assertion["severity"] == "high"
 
+    def test_bad_repo_missing_auth_package(self, bad_repo, anti_patterns):
+        """Bad repo should import from @playwright/test instead of playwright-test-auth."""
+        test_file = bad_repo / "checkout.spec.ts"
+        content = test_file.read_text()
+
+        assert "from '@playwright/test'" in content
+        assert "@redhat-cloud-services/playwright-test-auth" not in content
+
+        missing_auth = anti_patterns["anti_patterns"]["missing_auth_package"]
+        assert missing_auth["severity"] == "high"
+
     def test_bad_repo_examples_match_anti_patterns(self, bad_repo, anti_patterns):
         """Verify that bad examples in fixtures match anti-patterns.yaml examples."""
         test_file = bad_repo / "checkout.spec.ts"
@@ -202,6 +221,7 @@ class TestAntiPatternsConfiguration:
         high_severity = [
             "hard_coded_sleep",
             "missing_assertions",
+            "missing_auth_package",
         ]
 
         for pattern_key in high_severity:

@@ -44,10 +44,11 @@ Secret keys are file names consumed by the helper:
 | `non-org-admin.password` | `non-org-admin` |
 
 Also provide `helper-control-token`, a random value used only to authorize the
-loopback cycle-reset route. Kubernetes passes it to the helper sidecar and the
-bot runner as environment variables; the runner removes its copy before
-starting model tools. The token is excluded from the helper's profile-file
-mount. Set these Vault fields from the existing `insights-chrome` Stage
+loopback cycle-reset route. Kubernetes passes it to the helper sidecar as
+`UI_TEST_LOGIN_HELPER_CONTROL_TOKEN` and to the bot runner as
+`BOT_CYCLE_START_TOKEN`; the runner removes its copy before starting model
+tools. The token is excluded from the helper's profile-file mount. Set these
+Vault fields from the existing `insights-chrome` Stage
 credentials: `org-admin.username` from `CHROME_E2E_USERNAME`,
 `org-admin.password` from `CHROME_E2E_PASSWORD`, `non-org-admin.username` from
 `E2E_NON_ADMIN_USER`, and `non-org-admin.password` from

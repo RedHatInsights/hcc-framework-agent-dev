@@ -109,11 +109,11 @@ objects:
             value: http://devbot-memory-server:8080/health
           - name: BOT_MEMORY_HEALTH_TIMEOUT
             value: "120"
-          - name: UI_TEST_LOGIN_HELPER_HEALTH_URL
+          - name: BOT_STARTUP_HEALTH_URL
             value: http://127.0.0.1:8768/health
-          - name: UI_TEST_LOGIN_HELPER_RESET_URL
+          - name: BOT_CYCLE_START_URL
             value: http://127.0.0.1:8768/__internal/cycle-start
-          - name: UI_TEST_LOGIN_HELPER_RESET_TOKEN
+          - name: BOT_CYCLE_START_TOKEN
             valueFrom:
               secretKeyRef:
                 name: ${UI_TEST_CREDENTIALS_SECRET}

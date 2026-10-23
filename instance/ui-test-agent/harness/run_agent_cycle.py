@@ -301,6 +301,9 @@ def _check_stage_login_dependencies(node: str) -> None:
 
 def _limit_runtime_to_one_cycle(runtime: Path) -> None:
     """Bound the copied dev-bot runner without relying on source-specific exits."""
+    # The harness needs one bounded model cycle per invocation, while upstream
+    # dev-bot only exposes its normal continuous loop. Patch the disposable copy
+    # so a local harness run exits cleanly without changing the checked-out source.
     runner_module = runtime / "bot" / "run.py"
     runner_source = runner_module.read_text(encoding="utf-8")
     cycle_loop = "        while True:\n            _try_slack_digest()"

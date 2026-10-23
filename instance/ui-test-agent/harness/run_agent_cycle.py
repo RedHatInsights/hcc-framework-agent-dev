@@ -356,29 +356,10 @@ def _write_runtime(
         json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8"
     )
 
-    if target == "stage":
-        config_module = runtime / "bot" / "config.py"
-        config_text = config_module.read_text(encoding="utf-8")
-        config_text, count = re.subn(
-            r'(?m)^    "mcp__bot-memory__\*",$',
-            '    "mcp__stage-login__sign_in",\n    "mcp__bot-memory__*",',
-            config_text,
-        )
-        if count != 1:
-            raise RuntimeError("Could not enable the one local stage-login tool")
-        config_module.write_text(config_text, encoding="utf-8")
-
     config_repo = workspace / "config-repo"
     profile = config_repo / "ui-test-agent"
     profile.mkdir(parents=True)
     shutil.copytree(INSTANCE_AGENT_DIR, profile / "agent")
-    if target == "local":
-        instance_mcp_path = profile / "agent" / "mcp.json"
-        instance_mcp = json.loads(instance_mcp_path.read_text(encoding="utf-8"))
-        instance_mcp.get("mcpServers", {}).pop("stage-login", None)
-        instance_mcp_path.write_text(
-            json.dumps(instance_mcp, indent=2) + "\n", encoding="utf-8"
-        )
     git = shutil.which("git")
     if not git:
         raise RuntimeError("git is required to create the disposable config overlay")

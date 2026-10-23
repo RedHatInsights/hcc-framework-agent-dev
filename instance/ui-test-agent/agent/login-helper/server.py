@@ -1,14 +1,16 @@
-"""Alias-based MCP bridge that signs in through the existing Chromium session."""
+"""Alias-based loopback HTTP bridge for the existing Chromium session."""
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hmac
 import json
 import os
 import re
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from typing import TypedDict
 
@@ -21,6 +23,7 @@ LOGIN_SCRIPT = Path(__file__).with_name("browser-login.mjs")
 PORT = 8768
 mcp = FastMCP("stage-login-helper")
 password_submission_attempted = False
+login_lock = threading.Lock()
 USERNAME = os.environ.pop("UI_TEST_USERNAME", "")
 PASSWORD = os.environ.pop("UI_TEST_PASSWORD", "")
 HARNESS_ALIAS = os.environ.pop("UI_HARNESS_PROFILE", "")
@@ -67,7 +70,7 @@ attempts: list[LoginResult] = []
 
 
 def _credentials_for(alias: str) -> tuple[str, str] | None:
-    """Resolve a profile inside the helper, never from a tool argument value."""
+    """Resolve a profile inside the helper, never from a request credential."""
     if not ALIAS_PATTERN.fullmatch(alias):
         return None
 
@@ -133,6 +136,34 @@ async def health(_request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
+@mcp.custom_route("/sign-in", methods=["POST"])
+async def sign_in_endpoint(request: Request) -> JSONResponse:
+    """Accept only a configured profile alias; never accept credential fields."""
+    try:
+        body = await request.body()
+        if len(body) > 256:
+            raise ValueError("request body too large")
+        payload = json.loads(body)
+    except ValueError:
+        return JSONResponse(
+            {"status": "blocked", "message": "Request must contain one profile alias."},
+            status_code=400,
+        )
+
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"alias"}
+        or not isinstance(payload["alias"], str)
+    ):
+        return JSONResponse(
+            {"status": "blocked", "message": "Request must contain one profile alias."},
+            status_code=400,
+        )
+
+    result = await asyncio.to_thread(sign_in, payload["alias"])
+    return JSONResponse(result)
+
+
 @mcp.custom_route("/__internal/cycle-start", methods=["POST"])
 async def reset_for_cycle(_request: Request) -> JSONResponse:
     """Clear the one-password-attempt guard between agent work cycles."""
@@ -148,8 +179,7 @@ async def reset_for_cycle(_request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
-@mcp.tool()
-def sign_in(alias: str) -> LoginResult:
+def _sign_in(alias: str) -> LoginResult:
     """Sign in with a configured persona alias, never accepting credentials.
 
     The helper resolves the alias from its private credential source. A failed
@@ -232,6 +262,12 @@ def sign_in(alias: str) -> LoginResult:
         safe_result["profile_alias"] = alias
     attempts.append(safe_result)
     return safe_result
+
+
+def sign_in(alias: str) -> LoginResult:
+    """Serialize requests so concurrent calls cannot submit credentials twice."""
+    with login_lock:
+        return _sign_in(alias)
 
 
 def main() -> None:

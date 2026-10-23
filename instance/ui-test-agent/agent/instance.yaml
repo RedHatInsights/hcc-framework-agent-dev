@@ -3,6 +3,5 @@ source: jira
 envs:
   - node
   - browser
-  - stage-login
 claude_md:
   strategy: append

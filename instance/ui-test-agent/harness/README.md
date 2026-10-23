@@ -180,10 +180,10 @@ Use the non-secret persona alias with `--profile <alias>`; it defaults to
 `UI_TEST_USERNAME` and `UI_TEST_PASSWORD`; the visible account/org role should
 still be checked in the console.
 `UI_TEST_USERNAME` and `UI_TEST_PASSWORD` are read only by the local
-stage-login helper. The helper accepts the requested profile alias as its tool
-argument and checks it against the locally selected alias; it never accepts
-credential values as tool arguments. The reusable implementation lives under
-`../agent/login-helper` and can instead read `<alias>.username` and
+stage-login helper. The helper accepts only the requested profile alias in a
+JSON request body and checks it against the locally selected alias; it never
+accepts credential values in the request. The reusable implementation lives
+under `../agent/login-helper` and can instead read `<alias>.username` and
 `<alias>.password` files from `UI_TEST_CREDENTIALS_DIR` when deployed. It uses
 the Red Hat `@redhat-cloud-services/playwright-test-auth`
 package against the harness's existing Chromium session, clears the sign-in

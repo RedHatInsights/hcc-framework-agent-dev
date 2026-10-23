@@ -7,7 +7,10 @@ Use the instance-specific OpenShift template at
 It adds a `stage-login-helper` sidecar to the bot pod without changing the
 shared deployment template used by other agents. Both containers use the
 runner image. The helper binds to pod loopback on port 8768 and reaches the
-existing Chromium CDP endpoint on port 9222; it needs no Service or Route.
+existing Chromium CDP endpoint on port 9222; it needs no Service or Route. The
+agent calls its `POST /sign-in` endpoint through the already permitted `Bash`
+tool, passing only a configured profile alias. The helper endpoint is not
+registered in the agent's MCP configuration and exposes no MCP tool.
 
 The helper's health endpoint is probed from inside the sidecar. The bot waits
 for it before starting. At the start of each agent work cycle, the framework
@@ -70,8 +73,8 @@ and memory server.
 Keep the first deployment paused (`BOT_REPLICAS: '0'` and
 `KEDA_DESIRED_REPLICAS: '0'`) while validating:
 
-1. The helper sidecar becomes ready and the bot can reach its MCP endpoint on
-   `127.0.0.1:8768`.
+1. The helper sidecar becomes ready and the bot can reach its `POST /sign-in`
+   endpoint on `127.0.0.1:8768` with a configured alias.
 2. Chromium reaches Stage through `devbot-proxy` and the login helper confirms
    the signed-in User Avatar control.
 3. `org-admin` and `non-org-admin` resolve to the intended accounts and the

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import os
@@ -37,6 +38,20 @@ class FakeFastMCP:
         return register
 
 
+class FakeJSONResponse:
+    def __init__(self, content, status_code=200):
+        self.content = content
+        self.status_code = status_code
+
+
+class FakeRequest:
+    def __init__(self, body):
+        self._body = body
+
+    async def body(self):
+        return self._body
+
+
 def load_helper_module():
     """Import the helper with small MCP/Starlette stubs for offline testing."""
     mcp = ModuleType("mcp")
@@ -50,7 +65,7 @@ def load_helper_module():
     requests = ModuleType("starlette.requests")
     requests.Request = type("Request", (), {})
     responses = ModuleType("starlette.responses")
-    responses.JSONResponse = type("JSONResponse", (), {})
+    responses.JSONResponse = FakeJSONResponse
 
     stubs = {
         "mcp": mcp,
@@ -192,6 +207,36 @@ class LoginHelperTests(unittest.TestCase):
         self.assertNotIn("private-alias-name", json.dumps(result))
         self.assertNotIn("private-alias-name", json.dumps(self.helper.attempts))
         run.assert_not_called()
+
+    def test_http_endpoint_accepts_only_a_profile_alias(self):
+        result = {"status": "authenticated", "profile_alias": "org-admin"}
+        with patch.object(self.helper, "sign_in", return_value=result) as sign_in:
+            response = asyncio.run(
+                self.helper.sign_in_endpoint(FakeRequest(b'{"alias":"org-admin"}'))
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, result)
+        sign_in.assert_called_once_with("org-admin")
+
+    def test_http_endpoint_rejects_credentials_and_extra_fields(self):
+        request = FakeRequest(
+            b'{"alias":"org-admin","password":"must-not-be-accepted"}'
+        )
+        with patch.object(self.helper, "sign_in") as sign_in:
+            response = asyncio.run(self.helper.sign_in_endpoint(request))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content["status"], "blocked")
+        self.assertNotIn("must-not-be-accepted", json.dumps(response.content))
+        sign_in.assert_not_called()
+
+    def test_http_endpoint_rejects_invalid_and_oversized_bodies(self):
+        for body in (b"not-json", b" " * 257):
+            with self.subTest(body_size=len(body)):
+                response = asyncio.run(self.helper.sign_in_endpoint(FakeRequest(body)))
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.content["status"], "blocked")
 
 
 if __name__ == "__main__":

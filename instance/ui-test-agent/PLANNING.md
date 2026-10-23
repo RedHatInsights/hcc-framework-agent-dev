@@ -30,7 +30,7 @@ The generated Secret belongs to the Konflux tenant namespace, so a runtime agent
 
 ### Deployment design note: credential helper
 
-The reusable helper lives in `agent/login-helper`. The instance-specific OpenShift template deploys it as a sidecar in the bot's existing pod. Mount the dedicated profile Secret read-only into the helper only; do not expose those profile values in the bot container's environment or filesystem. The helper resolves `<alias>.username` and `<alias>.password` from `UI_TEST_CREDENTIALS_DIR` (default `/var/run/ui-test-credentials`), performs Stage SSO through the pod's existing Chromium CDP session, and exposes only the narrow `sign_in(alias)` MCP tool on pod loopback. A token-protected loopback control route resets the one-submission guard at each new work cycle; the runner removes its reset-token environment variable before starting model tools. The helper needs no separate Deployment, Service, or Route. The existing Konflux `chrome-credentials-secret` is in the Konflux tenant namespace, so provision an equivalent dedicated Vault-backed Secret in the agent namespace.
+The reusable helper lives in `agent/login-helper`. The instance-specific OpenShift template deploys it as a sidecar in the bot's existing pod. Mount the dedicated profile Secret read-only into the helper only; do not expose those profile values in the bot container's environment or filesystem. The helper resolves `<alias>.username` and `<alias>.password` from `UI_TEST_CREDENTIALS_DIR` (default `/var/run/ui-test-credentials`), performs Stage SSO through the pod's existing Chromium CDP session, and exposes a loopback-only `POST /sign-in` endpoint that accepts only a profile alias. The agent calls it with the existing `Bash` tool; no custom MCP allowlist entry is needed. A token-protected loopback control route resets the one-submission guard at each new work cycle; the runner removes its reset-token environment variable before starting model tools. The helper needs no separate Deployment, Service, or Route. The existing Konflux `chrome-credentials-secret` is in the Konflux tenant namespace, so provision an equivalent dedicated Vault-backed Secret in the agent namespace.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the template, Secret key contract, and staged rollout checks.
 
@@ -147,7 +147,7 @@ Treat memory search results as helpful leads, not a complete coverage database. 
 - [x] Package the copy-ready Jira intake template with the instance.
 - [ ] Confirm the final Jira label and JQL/query for eligible unresolved tickets.
 - [x] Configure shared URL resolution for standard dev, stage, and prod targets.
-- [x] Add the narrow `stage-login.sign_in` tool to the framework allowlist and require its MCP server in the UI-test workflow.
+- [x] Expose Stage sign-in through a loopback HTTP endpoint called with the existing `Bash` tool, avoiding a login-tool allowlist change in the framework.
 - [x] Add an instance-specific deployment template for the helper sidecar, loopback health checks, and helper-only credential mount.
 - [x] Reset the one-submission guard between work cycles without exposing a model-callable reset tool.
 - [x] Add a paused Stage App Interface resource and namespace reference for the dedicated Vault-backed Secret.

@@ -39,7 +39,7 @@ Run deterministic checks for target/config validation, preflight selection and r
 
 ### One-cycle agent run — optional model access
 
-Run the actual runner for one cycle against fake Jira and memory. Stage is the default UI target; this exercises the workflow prompt, MCP tool use, browser proxy, and local credential helper against stage. It requires explicitly configured model endpoint and stage test-account environment variables plus `--allow-model`; it must not load the repository `.env` or connect to real Jira or shared memory. Model usage may incur cost, so the runner clearly announces the target before starting.
+Run the actual runner for one cycle against fake Jira and memory. Stage is the default UI target; this exercises the workflow prompt, loopback login endpoint, browser proxy, and local credential helper against Stage. It requires explicitly configured model endpoint and stage test-account environment variables plus `--allow-model`; it must not load the repository `.env` or connect to real Jira or shared memory. Model usage may incur cost, so the runner clearly announces the target before starting.
 
 ## Implemented layout
 
@@ -67,8 +67,10 @@ directory. Fake Jira and memory share `fake_services.py` and are exposed over
 loopback by `fake_mcp_server.py`. The optional runner uses a temporary dev-bot
 copy, local Jira/memory fixtures, and either loopback HCC or Stage through
 Squid; it bounds that copy to one cycle without relying on a scheduled-source
-mode. The reusable Stage login MCP lives with the agent implementation and
-resolves the requested alias inside the helper process.
+mode. The reusable Stage login helper lives with the agent implementation,
+exposes a loopback HTTP endpoint, and resolves the requested alias inside the
+helper process. The model calls the endpoint through the already allowed
+`Bash` tool.
 
 ## Scenarios
 

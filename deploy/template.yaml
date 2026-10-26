@@ -37,6 +37,9 @@ parameters:
   value: ""
 - name: REHOR_OPENCODE_MAX_TOOL_CALLS
   value: ""
+- name: REHOR_WORKSPACE_OWNER_UID
+  description: Numeric UID owning /home/botuser/app in the image; the coordinator compares the workspace owner against it instead of the pod's runtime UID.
+  value: "1000"
 - name: REHOR_MODEL_PROXY_URL
   value: ""
 - name: REHOR_MODEL_PROXY_TOKEN
@@ -229,6 +232,8 @@ objects:
             value: ${REHOR_OPENCODE_DEPLOYMENT_CONFIG}
           - name: REHOR_OPENCODE_MAX_TOOL_CALLS
             value: ${REHOR_OPENCODE_MAX_TOOL_CALLS}
+          - name: REHOR_WORKSPACE_OWNER_UID
+            value: ${REHOR_WORKSPACE_OWNER_UID}
           - name: REHOR_MODEL_PROXY_URL
             value: ${REHOR_MODEL_PROXY_URL}
           # Non-secret client placeholder; proxy injects the upstream API key.

@@ -31,6 +31,16 @@ parameters:
   value: devbot-framework
 - name: BOT_CONFIG_PATH
   value: ""
+- name: BOT_EXECUTION_ENGINE
+  value: python
+- name: REHOR_OPENCODE_DEPLOYMENT_CONFIG
+  value: ""
+- name: REHOR_OPENCODE_MAX_TOOL_CALLS
+  value: ""
+- name: REHOR_MODEL_PROXY_URL
+  value: ""
+- name: REHOR_MODEL_PROXY_TOKEN
+  value: ""
 - name: GCP_PROJECT_ID
   required: true
 - name: GCP_REGION
@@ -69,7 +79,7 @@ objects:
 #   4. NetworkPolicy    (ingress, allows Prometheus to scrape bot metrics)
 #
 # Prerequisites (deployed by platform-frontend-ai-dev):
-#   - devbot-proxy       (ports 3128, 9090, 8443, 8444, 8446)
+#   - devbot-proxy       (ports 3128, 9090, 8443, 8444, 8446, 8450)
 #   - devbot-memory-server (port 8080)
 #   - devbot-secrets     (Vault secret with git identity + credentials)
 #   - OpenShell gateway + agent-sandbox controller + KEDA installed in namespace
@@ -110,6 +120,8 @@ objects:
         - port: 8444
           protocol: TCP
         - port: 8446
+          protocol: TCP
+        - port: 8450
           protocol: TCP
       - to:
         - podSelector:
@@ -209,6 +221,19 @@ objects:
             value: ${BOT_CONFIG_REPO}
           - name: BOT_CONFIG_PATH
             value: ${BOT_CONFIG_PATH}
+          - name: CYCLE_RUNS_API_URL
+            value: http://devbot-memory-server:8080/api/cycle-runs
+          - name: BOT_EXECUTION_ENGINE
+            value: ${BOT_EXECUTION_ENGINE}
+          - name: REHOR_OPENCODE_DEPLOYMENT_CONFIG
+            value: ${REHOR_OPENCODE_DEPLOYMENT_CONFIG}
+          - name: REHOR_OPENCODE_MAX_TOOL_CALLS
+            value: ${REHOR_OPENCODE_MAX_TOOL_CALLS}
+          - name: REHOR_MODEL_PROXY_URL
+            value: ${REHOR_MODEL_PROXY_URL}
+          # Non-secret client placeholder; proxy injects the upstream API key.
+          - name: REHOR_MODEL_PROXY_TOKEN
+            value: ${REHOR_MODEL_PROXY_TOKEN}
           - name: BOT_DASHBOARD_URL
             value: http://devbot-memory-server:8080/api/bot-status
           - name: COSTS_API_URL

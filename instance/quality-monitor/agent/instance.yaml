@@ -1,5 +1,8 @@
 workflow: ./workflows/quality-monitor
 source: scheduled
+runtime: opencode
+provider: rehor-openai
+model: gpt-6-luna
 envs:
   - slack
   - node

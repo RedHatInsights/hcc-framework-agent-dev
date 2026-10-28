@@ -26,6 +26,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
@@ -40,6 +42,10 @@ jobs:
         run: |
           uv sync --extra dev
           uv run pytest --cov=. --cov-report=term --cov-report=xml -v
+
+      - name: Check OpenCode profile MCP preparation contract
+        working-directory: instance/quality-monitor/agent/workflows/quality-monitor/preflight
+        run: uv run pytest "$GITHUB_WORKSPACE/tests/test_opencode_mcp_contract.py" -v
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.13'

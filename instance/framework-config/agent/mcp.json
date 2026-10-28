@@ -3,6 +3,10 @@
     "mcp-atlassian": {
       "type": "http",
       "url": "${JIRA_MCP_URL}"
+    },
+    "hcc-patternfly-data-view": {
+      "command": "hcc-pf-mcp",
+      "args": []
     }
   }
 }

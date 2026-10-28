@@ -49,8 +49,11 @@ Use this case format:
 - **Preconditions:** <page, role, state>
 - **Test data:** <values or none>
 - **Steps:**
-  1. <One action, with verified locator>
+  1. <First user action>
+     - **Locator:** <verified semantic locator, when this action interacts with the UI>
      - **Expected:** <optional step result>
+  2. <Next user action>
+     - **Locator:** <this action's verified semantic locator, when applicable>
 - **Expected result:** <pass/fail condition>
 - **Observed result:** <result or Not run>
 - **Status:** <pass | fail | blocked | not run>

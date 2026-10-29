@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from typing import Protocol
 
@@ -29,6 +30,11 @@ def memory_tasks_payload(
     excluded = set(query.getlist("exclude_status"))
     items = [task for task in items if task.get("status") not in excluded]
     return {"items": items}
+
+
+def _json_tool_result(value: object) -> str:
+    """Keep empty and null fixture results readable to MCP clients."""
+    return json.dumps(value)
 
 
 def create_server(kind: str):
@@ -125,20 +131,25 @@ def create_server(kind: str):
             status: str | None = None,
             include_archived: bool = False,
             instance_id: str | None = None,
-        ) -> list[dict]:
-            return service.call(
-                "task_list",
-                {
-                    "status": status,
-                    "include_archived": include_archived,
-                    "instance_id": instance_id,
-                },
+        ) -> str:
+            return _json_tool_result(
+                service.call(
+                    "task_list",
+                    {
+                        "status": status,
+                        "include_archived": include_archived,
+                        "instance_id": instance_id,
+                    },
+                )
             )
 
         @mcp.tool()
-        def task_get(external_key: str, source_type: str = "jira") -> dict | None:
-            return service.call(
-                "task_get", {"external_key": external_key, "source_type": source_type}
+        def task_get(external_key: str, source_type: str = "jira") -> str:
+            return _json_tool_result(
+                service.call(
+                    "task_get",
+                    {"external_key": external_key, "source_type": source_type},
+                )
             )
 
         @mcp.tool()
@@ -201,19 +212,21 @@ def create_server(kind: str):
             title: str | None = None,
             summary: str | None = None,
             metadata: dict | None = None,
-        ) -> dict | None:
-            return service.call(
-                "task_update",
-                {
-                    "external_key": external_key,
-                    "source_type": source_type,
-                    "status": status,
-                    "last_addressed": last_addressed,
-                    "paused_reason": paused_reason,
-                    "title": title,
-                    "summary": summary,
-                    "metadata": metadata,
-                },
+        ) -> str:
+            return _json_tool_result(
+                service.call(
+                    "task_update",
+                    {
+                        "external_key": external_key,
+                        "source_type": source_type,
+                        "status": status,
+                        "last_addressed": last_addressed,
+                        "paused_reason": paused_reason,
+                        "title": title,
+                        "summary": summary,
+                        "metadata": metadata,
+                    },
+                )
             )
 
         @mcp.tool()
@@ -248,21 +261,23 @@ def create_server(kind: str):
             repo: str | None = None,
             tag: str | None = None,
             limit: int = 5,
-        ) -> list[dict]:
-            return service.call(
-                "memory_search",
-                {
-                    "query": query,
-                    "category": category,
-                    "repo": repo,
-                    "tag": tag,
-                    "limit": limit,
-                },
+        ) -> str:
+            return _json_tool_result(
+                service.call(
+                    "memory_search",
+                    {
+                        "query": query,
+                        "category": category,
+                        "repo": repo,
+                        "tag": tag,
+                        "limit": limit,
+                    },
+                )
             )
 
         @mcp.tool()
-        def memory_list() -> list[dict]:
-            return service.call("memory_list", {})
+        def memory_list() -> str:
+            return _json_tool_result(service.call("memory_list", {}))
 
         return mcp
 

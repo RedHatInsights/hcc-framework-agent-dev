@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 from typing import Protocol
 
 from fake_services import FakeJira, FakeMemory
+
+JIRA_SCENARIOS_FILE = Path(__file__).resolve().parent / "fixtures" / "jira-scenarios.json"
 
 
 class QueryParameters(Protocol):
@@ -292,114 +295,44 @@ def _fixture_issue() -> dict:
         environment = "stage"
         target_url = "https://console.stage.redhat.com"
         application = "Hybrid Cloud Console"
-        if scenario == "dashboard-widgets-report":
-            summary = "Produce detailed HCC dashboard widget test plan"
-            goal = (
-                "Verify the current dashboard and widget-library inventory, then use "
-                "the recorded Stage discovery notes below to write a complete, "
-                "tester-ready widget test plan and results report. Keep each case "
-                "step-by-step and include relevant verified semantic locators for "
-                "every UI interaction. Clearly distinguish observations verified "
-                "this run from prior discovery notes and mark unexecuted cases not run."
-            )
-            expected = (
-                "A readable Markdown report with a separate detailed section for each "
-                "test case, atomic numbered actions, semantic locators, expected and "
-                "observed results, status, risks, assumptions, and coverage gaps."
-            )
-            scope = (
-                "Read-only report pass. You may inspect the dashboard and open then "
-                "close the Add widgets library. Do not add, remove, reorder, resize, "
-                "or otherwise mutate widgets. Do not claim prior observations were "
-                "retested in this run. If the current layout differs from the recorded "
-                "baseline, document the difference and do not attempt to repair it."
-            )
-            discovery_notes = (
-                "Prior Stage exploration on 2026-10-14: after removing an extra "
-                "Quay.io widget, the 10-widget dashboard baseline was verified as "
-                "Red Hat Enterprise Linux, Red Hat OpenShift, Ansible Automation "
-                "Platform, Recently visited, My favorite services, Subscriptions, "
-                "Explore capabilities, Red Hat OpenShift AI, Image Builder, and "
-                "Advanced Cluster Security. The Add widgets library listed My support "
-                "cases, Bookmarked learning resources, Events, and Integrations. "
-                "The Add widgets trigger was observed as a button with accessible name "
-                "Add widgets. Tray add handles did not expose consistent semantic "
-                "controls; click and simulated drag did not add a widget. One run "
-                "found 3 of 4 tray tiles had no interactive accessibility-tree entry; "
-                "the remaining entry was an unlabeled generic button. Removing a "
-                "widget from its Widget actions menu worked. A later read-only run "
-                "found the Red Hat Enterprise Linux widget missing; a cleanup attempt "
-                "did not confirm restoration. Restore-by-drag remains unverified. "
-                "Maximize height and Minimize height worked and returned "
-                "the card to its prior size. Subscriptions Active linked to "
-                "/subscriptions/inventory?status=active. Recently visited placed "
-                "Subscription Services first after visiting Subscriptions. The My "
-                "favorite services empty state included a View all services link. "
-                "Explore capabilities links were inventoried but not click-tested. "
-                "These are historical observations; verify current layout and locators "
-                "only, and label historical outcomes as prior-run results."
-            )
-        elif scenario == "dashboard-widgets":
-            summary = "Explore HCC dashboard widgets and map test coverage"
-            goal = (
-                "Explore the dashboard and widget library. Develop detailed test cases "
-                "for adding, removing, restoring, reordering, and resizing widgets, "
-                "and for exercising each widget's user-facing capabilities."
-            )
-            expected = (
-                "Inventory the dashboard widgets and library, exercise representative "
-                "widget management and widget capabilities, and document tester-ready "
-                "cases with step-by-step actions and verified semantic locators for all "
-                "discovered functionality. Mark unexecuted cases not run and record "
-                "results, risks, and coverage gaps."
-            )
-            scope = (
-                "Keep exploration bounded: test representative behavior and do not "
-                "exhaustively execute every drafted case in this run. If an interaction "
-                "remains unclear after two attempts, record the gap and continue. Use "
-                "the designated mutable test account. Record the initial dashboard "
-                "layout and each mutation. Limit mutations to dashboard widget layout. "
-                "Do not create or modify underlying service/customer data or use "
-                "irreversible reset actions."
-            )
-        else:
-            summary = "Verify Stage sign-in and dashboard landing"
-            goal = "Authenticate with the configured test account and verify landing on the HCC dashboard."
-            expected = "Sign-in completes and the user reaches a usable Hybrid Cloud Console dashboard with the active account/org context clear."
-            scope = "Check authentication and the initial dashboard only. Read-only; do not create, edit, or delete data."
+        scenario_key = scenario
     else:
         environment = "ephemeral"
         target_url = "http://127.0.0.1:8765"
         application = "Hybrid Cloud Console local fixture"
-        summary = f"Explore the {environment} console using the UI test harness"
-        goal = "Explore the signed-in console and check the Subscriptions and Inventory views."
-        expected = "The requested profile can sign in; both views open and show their fixture content."
-        scope = "No production data or mutations are in scope."
+        scenario_key = "local-default"
+
+    fixtures = json.loads(JIRA_SCENARIOS_FILE.read_text(encoding="utf-8"))
+    try:
+        scenario_data = fixtures["scenarios"][scenario_key]
+        base_issue = fixtures["base_issue"]
+        description_template = fixtures["description_template"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(
+            f"Missing Jira fixture data for scenario: {scenario_key}"
+        ) from exc
+
+    description = description_template.format(
+        application=application,
+        environment=environment,
+        target_url=target_url,
+        profile_alias=profile_alias,
+        goal=scenario_data["goal"],
+        expected=scenario_data["expected"],
+        scope=scenario_data["scope"],
+        discovery_notes=(
+            f"\nDiscovery notes: {scenario_data['discovery_notes']}"
+            if scenario_data.get("discovery_notes")
+            else ""
+        ),
+    )
     return {
-        "key": "UITEST-LOCAL-1",
+        **base_issue,
         "fields": {
-            "summary": summary,
-            "description": (
-                f"Application: {application}\n"
-                f"Environment: {environment}\n"
-                f"Target URL: {target_url}\n"
-                f"Test profile alias: {profile_alias}\n"
-                f"Goal: {goal}\n"
-                f"Expected: {expected}\n"
-                f"Scope: {scope}"
-                + (
-                    f"\nDiscovery notes: {discovery_notes}"
-                    if target_mode == "stage" and scenario == "dashboard-widgets-report"
-                    else ""
-                )
-            ),
-            "status": {"name": "To Do"},
-            "labels": ["ui-test"],
-            "created": "2026-01-01T00:00:00Z",
-            "updated": "2026-01-01T00:00:00Z",
-            "issuetype": {"name": "Task"},
+            **base_issue["fields"],
+            "summary": scenario_data["summary"],
+            "description": description,
         },
-        "comments": [],
     }
 
 

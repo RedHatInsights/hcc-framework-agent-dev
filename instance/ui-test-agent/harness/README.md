@@ -57,6 +57,9 @@ fixture HTML and prompt strings have content-oriented line breaks.
   unsupported operations (including status changes) fail closed.
 - `fake_mcp_server.py` exposes those fakes as optional loopback MCP services.
   Each process starts with a fresh synthetic issue or empty memory.
+- `fixtures/jira-scenarios.json` holds the synthetic Jira issue fields and scenario
+  text used by model cycles. Add or revise a scenario there; the runner reads the
+  available Stage scenario names from the same file.
 - `fake_auth.py` resolves only the fixture aliases `viewer` and `org-admin`.
   `login_profile()` passes dummy credentials directly to a supplied login
   callback and returns display metadata only. Callers cannot retrieve a

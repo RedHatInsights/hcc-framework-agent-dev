@@ -590,6 +590,16 @@ def _extract_agent_model_error(log_path: Path) -> str | None:
     return None
 
 
+def _available_jira_scenarios() -> tuple[str, ...]:
+    fixture_path = HARNESS_DIR / "fixtures" / "jira-scenarios.json"
+    fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
+    return tuple(
+        scenario
+        for scenario in fixtures["scenarios"]
+        if scenario != "local-default"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -606,11 +616,7 @@ def main():
     )
     parser.add_argument(
         "--scenario",
-        choices=(
-            "auth-dashboard",
-            "dashboard-widgets",
-            "dashboard-widgets-report",
-        ),
+        choices=_available_jira_scenarios(),
         default="auth-dashboard",
         help="Synthetic Jira request to run (default: auth-dashboard)",
     )

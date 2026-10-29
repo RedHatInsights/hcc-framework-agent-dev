@@ -170,6 +170,13 @@ op run --env-file "$HOME/env/claude.env" -- \
   --profile org-admin --scenario dashboard-widgets --allow-model
 ```
 
+The `insights-chrome-shell` scenario asks the agent to check the signed-in landing
+page and masthead, including service navigation, All Services, search,
+notifications, settings, sidebar, and favorites. It permits only a reversible
+favorite-service change, which the agent must restore. This scenario supports comparison with
+the existing `insights-chrome` UI tests; the harness does not execute that
+repository's test suite.
+
 The `dashboard-widgets` scenario asks the agent to explore the dashboard and
 widget library, develop tester-ready cases for widget management and widget
 capabilities, and record the layout changes it makes. The
@@ -257,7 +264,7 @@ fixture state, costs, logs, and the model transcript. The runner
 scrubs configured UI credentials from persisted text files and records
 whether it detected a leak. Stage result bundles omit screenshot attachments
 so images of identity forms cannot retain entered values. The runner allows up
-to 100 model turns by default; override with `--max-turns` (1–100) for a shorter
+to 150 model turns by default; override with `--max-turns` (1–200) for a shorter
 or bounded cycle. The default cycle timeout is 900 seconds; override with
 `--timeout` when needed.
 

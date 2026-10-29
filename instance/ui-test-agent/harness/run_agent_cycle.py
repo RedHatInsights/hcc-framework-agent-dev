@@ -300,25 +300,29 @@ def _check_stage_login_dependencies(node: str) -> None:
 
 
 def _limit_runtime_to_one_cycle(runtime: Path) -> None:
-    """Bound the copied dev-bot runner without relying on source-specific exits."""
+    """Bound the copied dev-bot runner to one prompt and no scheduled sleep."""
     # The harness needs one bounded model cycle per invocation, while upstream
     # dev-bot only exposes its normal continuous loop. Patch the disposable copy
     # so a local harness run exits cleanly without changing the checked-out source.
     runner_module = runtime / "bot" / "run.py"
     runner_source = runner_module.read_text(encoding="utf-8")
-    cycle_loop = "        while True:\n            _try_slack_digest()"
+    cycle_loop = "            while True:"
     if runner_source.count(cycle_loop) != 1:
         raise RuntimeError(
             "Could not locate the dev-bot main cycle loop to limit the harness run"
         )
-    runner_module.write_text(
-        runner_source.replace(
-            cycle_loop,
-            "        for _cycle in range(1):\n            _try_slack_digest()",
-            1,
-        ),
-        encoding="utf-8",
+    runner_source = runner_source.replace(
+        cycle_loop,
+        "            for _cycle in range(1):",
+        1,
     )
+    sleep_call = "    time.sleep(sleep_seconds)"
+    if runner_source.count(sleep_call) != 1:
+        raise RuntimeError("Could not locate the dev-bot cycle sleep for the harness")
+    # The normal worker waits between cycles, including after preflight errors;
+    # this disposable one-cycle run should return its result without that delay.
+    runner_source = runner_source.replace(sleep_call, "    return 0", 1)
+    runner_module.write_text(runner_source, encoding="utf-8")
 
 
 def _write_runtime(
@@ -594,9 +598,7 @@ def _available_jira_scenarios() -> tuple[str, ...]:
     fixture_path = HARNESS_DIR / "fixtures" / "jira-scenarios.json"
     fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
     return tuple(
-        scenario
-        for scenario in fixtures["scenarios"]
-        if scenario != "local-default"
+        scenario for scenario in fixtures["scenarios"] if scenario != "local-default"
     )
 
 
@@ -620,13 +622,13 @@ def main():
         default="auth-dashboard",
         help="Synthetic Jira request to run (default: auth-dashboard)",
     )
-    parser.add_argument("--max-turns", type=int, default=100)
+    parser.add_argument("--max-turns", type=int, default=150)
     parser.add_argument("--timeout", type=int, default=900)
     args = parser.parse_args()
     if not args.allow_model:
         parser.error("pass --allow-model to explicitly enable the model call")
-    if args.max_turns < 1 or args.max_turns > 100:
-        parser.error("--max-turns must be between 1 and 100")
+    if args.max_turns < 1 or args.max_turns > 200:
+        parser.error("--max-turns must be between 1 and 200")
     if args.timeout < 60:
         parser.error("--timeout must be at least 60 seconds")
     if args.target == "local" and args.profile not in {"viewer", "org-admin"}:
@@ -864,11 +866,13 @@ def main():
 
         runner_log = (artifacts / "runner.log").open("w", encoding="utf-8")
         log_handles.append(runner_log)
+        # dev-bot exposes bot.run:main as a console script, not a -m entrypoint;
+        # invoke that function because the harness skips installing the workspace.
         runner = subprocess.Popen(
             [
                 str(python),
-                "-m",
-                "bot.run",
+                "-c",
+                "from bot.run import main; main()",
                 "--label",
                 LABEL,
                 "--instance-id",
@@ -899,6 +903,10 @@ def main():
             runner_exit = 124
         for handle in log_handles:
             handle.flush()
+
+        bot_log = runtime / "data" / "bot.log"
+        if bot_log.is_file():
+            shutil.copy2(bot_log, artifacts / "bot.log")
 
         captured = _capture_state(artifacts, secrets, args.target)
         state = captured["state"]

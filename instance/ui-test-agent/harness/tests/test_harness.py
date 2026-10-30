@@ -60,11 +60,17 @@ def issue(key="UITEST-LOCAL-1", updated="2026-01-01T00:00:00Z", comments=None):
     }
 
 
-def run_preflight(fake_jira: FakeJira, fake_memory: FakeMemory):
+def run_preflight(
+    fake_jira: FakeJira,
+    fake_memory: FakeMemory,
+    capacity=(0, 5),
+    instance_id="ui-test-harness",
+    label="ui-test",
+):
     results = []
     common = ModuleType("common")
-    common.INSTANCE_ID = "ui-test-harness"
-    common.get_capacity = lambda: (0, 5)
+    common.INSTANCE_ID = instance_id
+    common.get_capacity = lambda: capacity
     common.output_result = lambda status, text="": results.append((status, text))
 
     jira_module = ModuleType("jira_mcp")
@@ -78,7 +84,7 @@ def run_preflight(fake_jira: FakeJira, fake_memory: FakeMemory):
     injected = {"common": common, "jira_mcp": jira_module, "memory_mcp": memory_module}
     old_modules = {name: sys.modules.get(name) for name in injected}
     old_label = os.environ.get("BOT_LABEL")
-    os.environ["BOT_LABEL"] = "ui-test"
+    os.environ["BOT_LABEL"] = label
     try:
         sys.modules.update(injected)
         spec = importlib.util.spec_from_file_location(
@@ -101,7 +107,47 @@ def run_preflight(fake_jira: FakeJira, fake_memory: FakeMemory):
     return results
 
 
+def task_record(status, last_addressed="2026-01-15T12:00:00Z"):
+    return {
+        "external_key": "UITEST-LOCAL-1",
+        "source_type": "jira",
+        "instance_id": "ui-test-harness",
+        "status": status,
+        "last_addressed": last_addressed,
+    }
+
+
+def jira_comment(body, created, author="Developer"):
+    return {
+        "body": body,
+        "created": created,
+        "author": {"displayName": author},
+    }
+
+
 class PreflightHarnessTests(unittest.TestCase):
+    def test_missing_instance_id_fails_before_external_lookups(self):
+        jira = FakeJira([issue()])
+        memory = FakeMemory()
+
+        results = run_preflight(jira, memory, instance_id="")
+
+        self.assertEqual(results[0][0], "error")
+        self.assertIn("BOT_INSTANCE_ID is required", results[0][1])
+        self.assertEqual(jira.calls, [])
+        self.assertEqual(memory.calls, [])
+
+    def test_unsafe_label_fails_before_external_lookups(self):
+        jira = FakeJira([issue()])
+        memory = FakeMemory()
+
+        results = run_preflight(jira, memory, label='ui-test" OR project is not EMPTY')
+
+        self.assertEqual(results[0][0], "error")
+        self.assertIn("BOT_LABEL contains unsupported characters", results[0][1])
+        self.assertEqual(jira.calls, [])
+        self.assertEqual(memory.calls, [])
+
     def test_no_labeled_ticket_skips(self):
         jira = FakeJira([issue()])
         jira.issues["UITEST-LOCAL-1"]["fields"]["labels"] = ["another-label"]
@@ -119,26 +165,91 @@ class PreflightHarnessTests(unittest.TestCase):
         self.assertEqual(jira.calls[0][0], "jira_search")
         self.assertEqual(memory.calls[0][0], "task_list")
 
-    def test_retest_comment_dispatches_existing_completed_ticket(self):
-        comments = [
+    def test_new_ticket_waits_when_task_capacity_is_full(self):
+        jira = FakeJira([issue()])
+
+        results = run_preflight(jira, FakeMemory(), capacity=(5, 5))
+
+        self.assertEqual(results[0][0], "skip")
+        self.assertIn("capacity is full", results[0][1])
+
+    def test_active_task_resumes_without_rechecking_comments(self):
+        jira = FakeJira([issue()])
+        memory = FakeMemory(tasks=[task_record("in_progress")])
+
+        results = run_preflight(jira, memory)
+
+        self.assertEqual(results[0][0], "start")
+        self.assertIn("resume interrupted test work", results[0][1])
+        self.assertEqual([name for name, _ in jira.calls], ["jira_search"])
+
+    def test_paused_task_resumes_after_a_new_adf_comment(self):
+        comment = jira_comment(
             {
-                "body": "/retest",
-                "created": "2026-02-01T12:00:00Z",
-                "author": {"displayName": "Developer"},
-            }
-        ]
-        jira = FakeJira([issue(updated="2026-02-01T12:00:01Z", comments=comments)])
-        memory = FakeMemory(
-            tasks=[
-                {
-                    "external_key": "UITEST-LOCAL-1",
-                    "source_type": "jira",
-                    "instance_id": "ui-test-harness",
-                    "status": "done",
-                    "last_addressed": "2026-01-15T12:00:00Z",
-                }
-            ]
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "Please retry the flow."}],
+                    }
+                ]
+            },
+            "2026-02-01T12:00:00Z",
         )
+        jira = FakeJira([issue(updated="2026-02-01T12:00:01Z", comments=[comment])])
+        memory = FakeMemory(tasks=[task_record("paused")])
+
+        results = run_preflight(jira, memory)
+
+        self.assertEqual(results[0][0], "start")
+        self.assertIn("human reply received", results[0][1])
+        self.assertIn("Please retry the flow.", results[0][1])
+
+    def test_completed_task_routes_new_human_followup_not_report_mention(self):
+        comments = [
+            jira_comment(
+                "**UI Testing Agent Report**\nPrevious result.",
+                "2026-02-01T12:00:00Z",
+                author="UI Testing Agent",
+            ),
+            jira_comment(
+                "The UI Testing Agent Report missed the settings menu; please check it.",
+                "2026-02-02T12:00:00Z",
+            ),
+        ]
+        jira = FakeJira([issue(updated="2026-02-02T12:00:01Z", comments=comments)])
+        memory = FakeMemory(tasks=[task_record("done")])
+
+        results = run_preflight(jira, memory)
+
+        self.assertEqual(results[0][0], "start")
+        self.assertIn("assess whether it requests a retest", results[0][1])
+        self.assertIn("missed the settings menu", results[0][1])
+
+    def test_completed_task_ignores_old_and_agent_generated_comments(self):
+        comments = [
+            jira_comment("Old request", "2026-01-10T12:00:00Z"),
+            jira_comment(
+                " **UI Testing Agent Clarification**\nQuestion.",
+                "2026-02-01T12:00:00Z",
+                author="UI Testing Agent",
+            ),
+            jira_comment("  ", "2026-02-02T12:00:00Z"),
+        ]
+        jira = FakeJira([issue(updated="2026-02-02T12:00:01Z", comments=comments)])
+        memory = FakeMemory(tasks=[task_record("done")])
+
+        results = run_preflight(jira, memory)
+
+        self.assertEqual(results[0][0], "skip")
+        self.assertEqual(
+            [name for name, _ in jira.calls], ["jira_search", "jira_get_issue"]
+        )
+
+    def test_retest_comment_dispatches_existing_completed_ticket(self):
+        comments = [jira_comment("/retest", "2026-02-01T12:00:00Z")]
+        jira = FakeJira([issue(updated="2026-02-01T12:00:01Z", comments=comments)])
+        memory = FakeMemory(tasks=[task_record("done")])
+
         results = run_preflight(jira, memory)
         self.assertEqual(results[0][0], "start")
         self.assertIn("explicit retest request", results[0][1])
@@ -147,10 +258,70 @@ class PreflightHarnessTests(unittest.TestCase):
             [name for name, _ in jira.calls], ["jira_search", "jira_get_issue"]
         )
 
+    def test_completed_followup_waits_when_task_capacity_is_full(self):
+        comments = [jira_comment("Please retest", "2026-02-01T12:00:00Z")]
+        jira = FakeJira([issue(updated="2026-02-01T12:00:01Z", comments=comments)])
+        memory = FakeMemory(tasks=[task_record("done")])
+
+        results = run_preflight(jira, memory, capacity=(5, 5))
+
+        self.assertEqual(results[0][0], "skip")
+        self.assertIn("UITEST-LOCAL-1", results[0][1])
+        self.assertIn("capacity is full", results[0][1])
+
+    def test_memory_failure_stops_before_jira_search(self):
+        class UnavailableMemory(FakeMemory):
+            def call(self, name, arguments):
+                if name == "task_list":
+                    return None
+                return super().call(name, arguments)
+
+        jira = FakeJira([issue()])
+
+        results = run_preflight(jira, UnavailableMemory())
+
+        self.assertEqual(results[0][0], "error")
+        self.assertIn("Memory task lookup failed", results[0][1])
+        self.assertEqual(jira.calls, [])
+
+    def test_jira_search_failure_returns_error(self):
+        class UnavailableJira(FakeJira):
+            def call(self, name, arguments):
+                if name == "jira_search":
+                    return None
+                return super().call(name, arguments)
+
+        results = run_preflight(UnavailableJira([issue()]), FakeMemory())
+
+        self.assertEqual(results[0][0], "error")
+        self.assertIn("Jira search failed", results[0][1])
+
+    def test_comment_read_failure_returns_error_instead_of_repeating_work(self):
+        class UnavailableComments(FakeJira):
+            def call(self, name, arguments):
+                if name == "jira_get_issue":
+                    self.calls.append((name, arguments))
+                    return None
+                return super().call(name, arguments)
+
+        comment = jira_comment("Please retest", "2026-02-01T12:00:00Z")
+        jira = UnavailableComments(
+            [issue(updated="2026-02-01T12:00:01Z", comments=[comment])]
+        )
+        memory = FakeMemory(tasks=[task_record("done")])
+
+        results = run_preflight(jira, memory)
+
+        self.assertEqual(results[0][0], "error")
+        self.assertIn("refusing to guess retest state", results[0][1])
+
 
 class RuntimeHarnessTests(unittest.TestCase):
     def test_runner_copy_is_limited_to_one_cycle(self):
         source = (
+            "def _read_sleep_signal():\n"
+            "    time.sleep(sleep_seconds)\n"
+            "\n"
             "def main():\n"
             "    try:\n"
             "        while True:\n"
@@ -171,6 +342,8 @@ class RuntimeHarnessTests(unittest.TestCase):
             bounded_source = runner_module.read_text(encoding="utf-8")
             self.assertIn("for _cycle in range(1):", bounded_source)
             self.assertNotIn("while True:", bounded_source)
+            self.assertNotIn("time.sleep(sleep_seconds)", bounded_source)
+            self.assertIn("return 0", bounded_source)
             compile(bounded_source, str(runner_module), "exec")
 
 

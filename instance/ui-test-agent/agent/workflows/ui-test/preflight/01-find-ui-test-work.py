@@ -90,7 +90,13 @@ def _issue_updated_after_task(issue, task):
 
 
 def _comment_is_agent_generated(text):
-    return REPORT_MARKER in text or QUESTION_MARKER in text
+    first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    return first_line in {
+        REPORT_MARKER,
+        QUESTION_MARKER,
+        f"**{REPORT_MARKER}**",
+        f"**{QUESTION_MARKER}**",
+    }
 
 
 def _get_issue_comments(issue_key):

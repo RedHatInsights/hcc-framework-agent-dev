@@ -1,0 +1,363 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: hcc-ui-test-agent
+parameters:
+- name: NAMESPACE
+  value: ${NAMESPACE}
+- name: BOT_IMAGE
+  value: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+- name: IMAGE_TAG
+  required: true
+- name: BOT_LABEL
+  value: hcc-ui-test
+- name: BOT_REPLICAS
+  value: "0"
+- name: BOT_BOARD_NAME
+  value: ""
+- name: BOT_SPRINT_PREFIX
+  value: ""
+- name: BOT_INCLUDE_BACKLOG
+  value: "false"
+- name: BOT_INSTANCE_ID
+  value: ""
+- name: BOT_CONFIG_REPO
+  value: ""
+- name: BOT_NAME
+  value: devbot-ui-test
+- name: BOT_CONFIG_PATH
+  value: ""
+- name: UI_TEST_CREDENTIALS_SECRET
+  value: ui-test-agent-credentials
+- name: GCP_PROJECT_ID
+  required: true
+- name: GCP_REGION
+  required: true
+- name: VERTEX_ALLOWED_MODELS
+  required: true
+- name: SLACK_WEBHOOK_URL
+  value: ""
+- name: SLACK_NOTIFY_MODE
+  value: ""
+- name: SLACK_DIGEST_HOUR
+  value: ""
+- name: KEDA_TIMEZONE
+  value: "Europe/Prague"
+- name: KEDA_CRON_START
+  value: "0 9 * * 1-5"
+- name: KEDA_CRON_END
+  value: "0 23 * * 1-5"
+- name: KEDA_DESIRED_REPLICAS
+  value: "0"
+objects:
+
+# ============================================================================
+# UI-testing agent deployment with an alias-based Stage-login sidecar.
+#
+# Shared infrastructure (proxy, memory-server, secrets) is deployed by
+# the platform-frontend-ai-dev template in the same namespace.
+# The helper sidecar starts Chromium in the shared pod network namespace; its
+# credential volume is mounted only into the helper container.
+# This template creates:
+#   1. Bot Deployment (name controlled by BOT_NAME parameter)
+#   2. NetworkPolicy (egress restricted to proxy + memory-server + DNS)
+#
+# Prerequisites (deployed by platform-frontend-ai-dev):
+#   - devbot-proxy       (ports 3128, 9090, 8443, 8444, 8446)
+#   - devbot-memory-server (port 8080)
+#   - devbot-secrets     (Vault secret with git identity + credentials)
+#   - ui-test-agent-credentials (Vault-backed profile files for login-helper)
+# ============================================================================
+
+# --- Bot Deployment ---
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: ${BOT_NAME}
+    labels:
+      app.kubernetes.io/name: ${BOT_NAME}
+      app.kubernetes.io/component: bot
+      app.kubernetes.io/part-of: devbot
+  spec:
+    replicas: ${{BOT_REPLICAS}}
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: ${BOT_NAME}
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: ${BOT_NAME}
+          app.kubernetes.io/component: bot
+          app.kubernetes.io/part-of: devbot
+      spec:
+        containers:
+        - name: bot
+          image: ${BOT_IMAGE}:${IMAGE_TAG}
+          # HCC-local wrapper waits for the helper-owned Chromium before
+          # starting the unchanged shared bot entrypoint and browser preset.
+          command:
+          - tini
+          - --
+          - /bin/bash
+          - /home/botuser/app/deploy/ui-test-agent/start-bot.sh
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          env:
+          - name: BOT_LABEL
+            value: ${BOT_LABEL}
+          - name: BOT_MEMORY_URL
+            value: http://devbot-memory-server:8080/mcp
+          - name: BOT_MEMORY_HEALTH_URL
+            value: http://devbot-memory-server:8080/health
+          - name: BOT_MEMORY_HEALTH_TIMEOUT
+            value: "120"
+          - name: UI_TEST_LOGIN_HELPER_HEALTH_URL
+            value: http://127.0.0.1:8768/health
+          # Vertex AI — auth proxied through proxy container
+          - name: CLAUDE_CODE_SKIP_VERTEX_AUTH
+            value: "true"
+          - name: ANTHROPIC_VERTEX_BASE_URL
+            value: http://devbot-proxy:8443
+          - name: ANTHROPIC_VERTEX_PROJECT_ID
+            value: dummy-project
+          - name: CLOUD_ML_REGION
+            value: global
+          # Executor — thin client connects to proxy over TCP
+          - name: EXECUTOR_ADDR
+            value: devbot-proxy:9090
+          # Git identity — per-platform (from shared Vault secret)
+          - name: GH_USER_NAME
+            valueFrom:
+              secretKeyRef:
+                name: devbot-secrets
+                key: bot-gh-username
+          - name: GH_USER_EMAIL
+            valueFrom:
+              secretKeyRef:
+                name: devbot-secrets
+                key: bot-email
+          - name: GL_USER_NAME
+            valueFrom:
+              secretKeyRef:
+                name: devbot-secrets
+                key: bot-gl-name
+          - name: GL_USER_EMAIL
+            valueFrom:
+              secretKeyRef:
+                name: devbot-secrets
+                key: bot-gl-email
+          # Jira identity (from shared Vault secret)
+          - name: BOT_JIRA_EMAIL
+            valueFrom:
+              secretKeyRef:
+                name: devbot-secrets
+                key: jira-email
+          # Bot config
+          - name: BOT_BOARD_NAME
+            value: ${BOT_BOARD_NAME}
+          - name: BOT_SPRINT_PREFIX
+            value: ${BOT_SPRINT_PREFIX}
+          - name: BOT_INCLUDE_BACKLOG
+            value: ${BOT_INCLUDE_BACKLOG}
+          - name: BOT_INSTANCE_ID
+            value: ${BOT_INSTANCE_ID}
+          - name: BOT_CONFIG_REPO
+            value: ${BOT_CONFIG_REPO}
+          - name: BOT_CONFIG_PATH
+            value: ${BOT_CONFIG_PATH}
+          - name: BOT_DASHBOARD_URL
+            value: http://devbot-memory-server:8080/api/bot-status
+          - name: COSTS_API_URL
+            value: http://devbot-memory-server:8080/api/costs
+          # Slack notifications
+          - name: SLACK_WEBHOOK_URL
+            value: ${SLACK_WEBHOOK_URL}
+          - name: SLACK_NOTIFY_MODE
+            value: ${SLACK_NOTIFY_MODE}
+          - name: SLACK_DIGEST_HOUR
+            value: ${SLACK_DIGEST_HOUR}
+          # Proxy — shared pod deployed by platform-frontend-ai-dev
+          - name: PROXY_HOST
+            value: devbot-proxy
+          - name: HTTP_PROXY
+            value: http://devbot-proxy:3128
+          - name: HTTPS_PROXY
+            value: http://devbot-proxy:3128
+          - name: http_proxy
+            value: http://devbot-proxy:3128
+          - name: https_proxy
+            value: http://devbot-proxy:3128
+          # Chromium uses the same allowlisted proxy explicitly. Keep this
+          # separate from HTTP(S)_PROXY so agent and Jira traffic is unchanged.
+          - name: UI_BROWSER_PROXY
+            value: http://devbot-proxy:3128
+          - name: NO_PROXY
+            value: devbot-memory-server,devbot-proxy,localhost,127.0.0.1
+          - name: no_proxy
+            value: devbot-memory-server,devbot-proxy,localhost,127.0.0.1
+          # Jira — proxied through proxy container (mcp-atlassian on port 8444)
+          - name: JIRA_MCP_URL
+            value: http://devbot-proxy:8444/mcp
+          # GH release upload — proxied through proxy container (port 8446)
+          - name: GH_RELEASE_UPLOAD_URL
+            value: http://devbot-proxy:8446/upload
+          resources:
+            requests:
+              cpu: "1"
+              memory: 4Gi
+              ephemeral-storage: 4Gi
+            limits:
+              cpu: "4"
+              memory: 6Gi
+              ephemeral-storage: 8Gi
+        - name: stage-login-helper
+          image: ${BOT_IMAGE}:${IMAGE_TAG}
+          # Keep the Stage browser proxy setting local to this sidecar so bot,
+          # Jira, and model traffic retain their existing proxy configuration.
+          command:
+          - /home/botuser/app/.venv/bin/python
+          - /home/botuser/app/instance/ui-test-agent/agent/login-helper/server.py
+          - --host
+          - 127.0.0.1
+          - --port
+          - "8768"
+          env:
+          - name: UI_BROWSER_PROXY
+            value: http://devbot-proxy:3128
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+          - name: ui-test-credentials
+            mountPath: /var/run/ui-test-credentials
+            readOnly: true
+          - name: login-helper-tmp
+            mountPath: /tmp
+          startupProbe:
+            exec:
+              command:
+              - /usr/bin/curl
+              - -fsS
+              - http://127.0.0.1:8768/health
+            failureThreshold: 60
+            periodSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+              - /usr/bin/curl
+              - -fsS
+              - http://127.0.0.1:8768/health
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+              - /usr/bin/curl
+              - -fsS
+              - http://127.0.0.1:8768/health
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+              ephemeral-storage: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+              ephemeral-storage: 2Gi
+        volumes:
+        - name: ui-test-credentials
+          secret:
+            secretName: ${UI_TEST_CREDENTIALS_SECRET}
+            defaultMode: 0444
+            items:
+            - key: org-admin.username
+              path: org-admin.username
+            - key: org-admin.password
+              path: org-admin.password
+            - key: non-org-admin.username
+              path: non-org-admin.username
+            - key: non-org-admin.password
+              path: non-org-admin.password
+        - name: login-helper-tmp
+          emptyDir: {}
+
+# --- NetworkPolicy: Bot can only reach proxy + memory-server ---
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: ${BOT_NAME}-egress
+    labels:
+      app.kubernetes.io/part-of: devbot
+  spec:
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: ${BOT_NAME}
+    policyTypes:
+    - Egress
+    egress:
+    - to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: devbot-proxy
+      ports:
+      - port: 3128
+        protocol: TCP
+      - port: 9090
+        protocol: TCP
+      - port: 8443
+        protocol: TCP
+      - port: 8444
+        protocol: TCP
+      - port: 8446
+        protocol: TCP
+    - to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: memory-server
+      ports:
+      - port: 8080
+        protocol: TCP
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: openshift-dns
+      ports:
+      - port: 5353
+        protocol: UDP
+      - port: 5353
+        protocol: TCP
+
+# --- KEDA Cron Scaler ---
+# Override KEDA_TIMEZONE, KEDA_CRON_START, KEDA_CRON_END per deployment
+# target in the app-interface SaaS file.
+- apiVersion: keda.sh/v1alpha1
+  kind: ScaledObject
+  metadata:
+    name: ${BOT_NAME}-cron-scaler
+    labels:
+      app.kubernetes.io/name: ${BOT_NAME}
+      app.kubernetes.io/part-of: devbot
+  spec:
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: ${BOT_NAME}
+    minReplicaCount: 0
+    maxReplicaCount: 1
+    triggers:
+    - type: cron
+      metadata:
+        timezone: ${KEDA_TIMEZONE}
+        start: ${KEDA_CRON_START}
+        end: ${KEDA_CRON_END}
+        desiredReplicas: ${KEDA_DESIRED_REPLICAS}

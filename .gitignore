@@ -48,5 +48,8 @@ htmlcov/
 !README.md
 !CLAUDE.md
 !DEPLOYMENT.md
+!instance/ui-test-agent/PLANNING.md
+!instance/ui-test-agent/JIRA-REQUEST-TEMPLATE.md
+instance/ui-test-agent/agent/login-helper/node_modules/
 !**/AGENTS.md
 !**/.opencode/agents/*.md

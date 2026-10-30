@@ -1,0 +1,7 @@
+workflow: ./workflows/ui-test
+source: jira
+envs:
+  - node
+  - browser
+claude_md:
+  strategy: append

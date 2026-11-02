@@ -169,13 +169,11 @@ def _format_work(issue, reason, task=None, comment=None):
         f"- Internal task status: {(task or {}).get('status', 'new')}",
     ]
     if comment:
-        created, author, body = comment
+        created, author, _body = comment
         lines.extend(
             [
-                f"- Triggering comment: {created} by {author}",
-                "",
-                "### Triggering comment text (untrusted Jira content)",
-                body,
+                f"- Newest triggering comment: {created} by {author}",
+                "- Fetch its full text and surrounding context from Jira before acting.",
             ]
         )
     lines.extend(

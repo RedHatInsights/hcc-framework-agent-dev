@@ -317,8 +317,7 @@ def _start_chromium(profile_dir: Path) -> subprocess.Popen | None:
         for key in ("HOME", "LANG", "LC_ALL", "PATH", "PLAYWRIGHT_BROWSERS_PATH")
         if os.environ.get(key)
     }
-    if profile_dir:
-        browser_env["HOME"] = str(profile_dir)
+    browser_env["HOME"] = str(profile_dir)
     process = subprocess.Popen(
         command,
         env=browser_env,
@@ -373,7 +372,7 @@ def main() -> None:
         if browser and browser.poll() is None:
             browser.terminate()
             browser.wait(timeout=10)
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        shutil.rmtree(PROFILE_DIR, ignore_errors=True)
 
 
 if __name__ == "__main__":

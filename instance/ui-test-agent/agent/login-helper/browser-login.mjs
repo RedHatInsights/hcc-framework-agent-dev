@@ -6,13 +6,16 @@ import {
 
 const TARGET_URL = process.env.UI_TEST_TARGET_URL;
 const TARGET_HOST = 'console.stage.redhat.com';
-const SHOW_COOKIE_PROMPT = process.env.UI_HARNESS_SHOW_COOKIE_PROMPT === '1';
+const SHARED_CDP_URL = process.env.UI_TEST_CDP_URL || 'http://127.0.0.1:9222';
+const LOGIN_DEADLINE_MS = 200_000;
 const SSO_HOSTS = new Set([
   'sso.stage.redhat.com',
   'sso.redhat.com',
   'identity.redhat.com',
   'access.redhat.com',
 ]);
+const AUTH_ORIGINS = new Set([TARGET_HOST, ...SSO_HOSTS]);
+const AUTH_COOKIE_DOMAINS = new Set([...AUTH_ORIGINS, 'redhat.com']);
 let credentialSubmissionStarted = false;
 
 async function hasSignedInUserMenu(page, timeout = 5000) {
@@ -57,130 +60,166 @@ async function clearLoginFields(page) {
   }
 }
 
-async function main() {
-  const username = process.env.UI_TEST_USERNAME;
-  const password = process.env.UI_TEST_PASSWORD;
-  if (!username || !password || !TARGET_URL) {
-    return { status: 'blocked', message: 'Missing local sign-in configuration.' };
+function browserEnvironment() {
+  const env = { ...process.env };
+  delete env.UI_TEST_USERNAME;
+  delete env.UI_TEST_PASSWORD;
+  delete env.UI_HARNESS_USERNAME;
+  delete env.UI_HARNESS_PASSWORD;
+  return env;
+}
+
+function sessionOrigins(storageState) {
+  const storageByOrigin = new Map(
+    storageState.origins
+      .filter(({ origin }) => AUTH_ORIGINS.has(new URL(origin).hostname))
+      .map(({ origin, localStorage }) => [origin, localStorage]),
+  );
+  for (const hostname of AUTH_ORIGINS) {
+    const origin = `https://${hostname}`;
+    if (!storageByOrigin.has(origin)) storageByOrigin.set(origin, []);
   }
+  return [...storageByOrigin].map(([origin, localStorage]) => ({ origin, localStorage }));
+}
 
-  let browser;
-  let page;
+async function transferSession(storageState, targetUrl, browsers) {
+  const agentBrowser = await chromium.connectOverCDP(SHARED_CDP_URL, { timeout: 10000 });
+  browsers.agent = agentBrowser;
+  const context = agentBrowser.contexts()[0];
+  const pages = context.pages();
+  const page = pages.find((candidate) => {
+    try {
+      return new URL(candidate.url()).hostname === TARGET_HOST;
+    } catch {
+      return false;
+    }
+  }) || pages[0] || await context.newPage();
+
+  await context.clearCookies();
+  const cookies = storageState.cookies.filter((cookie) =>
+    AUTH_COOKIE_DOMAINS.has(cookie.domain.replace(/^\./, '')),
+  );
+  await context.addCookies(cookies);
+  await context.addInitScript((origins) => {
+    const current = origins.find(({ origin }) => origin === location.origin);
+    if (!current) return;
+    localStorage.clear();
+    for (const { name, value } of current.localStorage) {
+      localStorage.setItem(name, value);
+    }
+  }, sessionOrigins(storageState));
+  await disableCookiePrompt(page);
+  await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  if (!(await hasSignedInUserMenu(page, 45000))) {
+    throw new Error('Transferred Stage session was not confirmed in the agent browser.');
+  }
+  return agentBrowser;
+}
+
+async function runLogin(username, password, browsers) {
+  const proxy = process.env.UI_BROWSER_PROXY;
+  if (!proxy) return { status: 'blocked', credential_submission_started: false };
+
+  const loginBrowser = await chromium.launch({
+    headless: true,
+    proxy: { server: proxy },
+    env: browserEnvironment(),
+    args: [
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-extensions',
+      '--ignore-certificate-errors',
+      '--host-resolver-rules=MAP consent.trustarc.com 127.0.0.1',
+      '--proxy-bypass-list=localhost;127.0.0.1;::1',
+    ],
+  });
+  browsers.login = loginBrowser;
+  const context = await loginBrowser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  page.setDefaultTimeout(15000);
+  page.setDefaultNavigationTimeout(30000);
   try {
-    browser = await chromium.connectOverCDP('http://127.0.0.1:9222', { timeout: 10000 });
-    const pages = browser.contexts().flatMap((context) => context.pages());
-    page = pages.find((candidate) => {
-      try {
-        return new URL(candidate.url()).hostname === TARGET_HOST;
-      } catch {
-        return false;
-      }
-    }) || pages[0];
-    if (!page) {
-      return { status: 'blocked', message: 'No browser page is available for sign-in.' };
-    }
-
-    // Install the package's TrustArc request blocker before re-entering Stage.
     await disableCookiePrompt(page);
-    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-
-    if (await hasSignedInUserMenu(page)) {
-      return {
-        status: 'already_authenticated',
-        message: 'The Insights Chrome User Avatar control is visible. Verify the account and org context before testing.',
-      };
-    }
-
+    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
     const usernameField = page.getByLabel('Red Hat login').first();
     try {
-      await usernameField.waitFor({ state: 'visible', timeout: 30000 });
+      await usernameField.waitFor({ state: 'visible', timeout: 15000 });
     } catch {
-      const currentHost = new URL(page.url()).hostname;
-      if (currentHost === TARGET_HOST) {
-        if (await hasSignedInUserMenu(page)) {
-          return {
-            status: 'already_authenticated',
-            message: 'The Insights Chrome User Avatar control is visible. Verify the account and org context before testing.',
-          };
-        }
-        return {
-          status: 'authentication_unconfirmed',
-          message: 'Stage loaded without an SSO form, but the signed-in User Avatar control was not found. Do not assume authentication.',
-        };
-      }
-      return {
-        status: 'sign_in_form_not_found',
-        message: 'The standard Red Hat SSO login form did not appear. Report the sign-in blocker.',
-      };
+      return { status: 'sign_in_form_not_found', credential_submission_started: false };
     }
 
     credentialSubmissionStarted = true;
     await redHatSsoLogin(withBaseUrl(page), username, password);
-    if (SHOW_COOKIE_PROMPT) {
-      await page.unroute('**/*');
-      await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    }
     if (new URL(page.url()).hostname !== TARGET_HOST) {
-      return {
-        status: 'login_unconfirmed',
-        credential_submission_started: true,
-        message: 'The SSO helper completed without returning to the Stage console. Do not retry in this cycle.',
-      };
+      return { status: 'login_unconfirmed', credential_submission_started: true };
     }
-    if (!(await hasSignedInUserMenu(page, 60000))) {
-      return {
-        status: 'login_unconfirmed',
-        credential_submission_started: true,
-        message: 'Stage loaded after SSO, but the signed-in User Avatar control was not found. Do not assume authentication or retry in this cycle.',
-      };
+    if (!(await hasSignedInUserMenu(page, 45000))) {
+      return { status: 'login_unconfirmed', credential_submission_started: true };
     }
-    return {
-      status: 'authenticated',
-      credential_submission_started: true,
-      message: 'Stage loaded and the Insights Chrome User Avatar control is visible. Verify the account and org context before testing.',
-    };
+
+    await transferSession(await context.storageState(), TARGET_URL, browsers);
+    return { status: 'authenticated', credential_submission_started: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (/Invalid login credentials/i.test(message)) {
-      return {
-        status: 'authentication_failed',
-        credential_submission_started: credentialSubmissionStarted,
-        message: 'Red Hat SSO rejected the configured test account. Do not retry in this cycle.',
-      };
+    if (/Invalid login credentials/i.test(error instanceof Error ? error.message : '')) {
+      return { status: 'authentication_failed', credential_submission_started: credentialSubmissionStarted };
     }
-    if (/Lockdown/i.test(message)) {
-      return {
-        status: 'blocked',
-        credential_submission_started: credentialSubmissionStarted,
-        message: 'The Stage proxy returned a Lockdown page. Report the proxy blocker.',
-      };
-    }
-    if (credentialSubmissionStarted) {
-      return {
-        status: 'login_unconfirmed',
-        credential_submission_started: true,
-        message: 'The SSO helper could not confirm Stage sign-in. Do not retry in this cycle.',
-      };
+    if (/Lockdown/i.test(error instanceof Error ? error.message : '')) {
+      return { status: 'blocked', credential_submission_started: credentialSubmissionStarted };
     }
     return {
-      status: 'blocked',
-      credential_submission_started: false,
-      message: 'The local SSO helper could not prepare the Stage login flow.',
+      status: credentialSubmissionStarted ? 'login_unconfirmed' : 'blocked',
+      credential_submission_started: credentialSubmissionStarted,
     };
   } finally {
-    if (page) await clearLoginFields(page);
-    if (browser) await browser.close();
+    await clearLoginFields(page);
+    await loginBrowser.close();
+  }
+}
+
+async function closeBrowsers(browsers) {
+  await Promise.all(Object.values(browsers).map((browser) => browser?.close().catch(() => {})));
+}
+
+let activeBrowsers = {};
+process.once('SIGTERM', () => {
+  void closeBrowsers(activeBrowsers).finally(() => process.exit(143));
+});
+
+async function main() {
+  const username = process.env.UI_TEST_USERNAME;
+  const password = process.env.UI_TEST_PASSWORD;
+  if (!username || !password || !TARGET_URL) {
+    return { status: 'blocked', credential_submission_started: false };
+  }
+
+  const browsers = {};
+  activeBrowsers = browsers;
+  let deadline;
+  try {
+    return await Promise.race([
+      runLogin(username, password, browsers),
+      new Promise((_, reject) => {
+        deadline = setTimeout(() => {
+          void closeBrowsers(browsers);
+          reject(new Error('Stage sign-in deadline exceeded.'));
+        }, LOGIN_DEADLINE_MS);
+      }),
+    ]);
+  } catch {
+    return {
+      status: credentialSubmissionStarted ? 'login_unconfirmed' : 'blocked',
+      credential_submission_started: credentialSubmissionStarted,
+    };
+  } finally {
+    clearTimeout(deadline);
+    await closeBrowsers(browsers);
   }
 }
 
 main().then(
-  (result) => process.stdout.write(`${JSON.stringify({
-    credential_submission_started: credentialSubmissionStarted,
-    ...result,
-  })}\n`),
+  (result) => process.stdout.write(`${JSON.stringify(result)}\n`),
   () => process.stdout.write(`${JSON.stringify({
     status: 'blocked',
     credential_submission_started: credentialSubmissionStarted,
-    message: 'The local SSO helper stopped unexpectedly. Do not retry if a password submission was attempted.',
   })}\n`),
 );

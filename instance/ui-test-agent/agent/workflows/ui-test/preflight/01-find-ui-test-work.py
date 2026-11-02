@@ -11,8 +11,9 @@ from memory_mcp import memory_call, memory_cleanup
 
 BOT_LABEL = os.environ.get("BOT_LABEL", "")
 LABEL_PATTERN = re.compile(r"^[a-zA-Z0-9:_-]+$")
-ACTIVE_STATUSES = {"in_progress", "pr_open", "pr_changes"}
+ACTIVE_STATUSES = {"in_progress"}
 COMMENT_LIMIT = 100
+SEARCH_PAGE_SIZE = 100
 REPORT_MARKER = "UI Testing Agent Report"
 QUESTION_MARKER = "UI Testing Agent Clarification"
 
@@ -21,25 +22,39 @@ def _fields(issue):
     return issue.get("fields") or issue
 
 
-def _normalize_search_result(result):
-    if isinstance(result, list):
-        return result
-    if isinstance(result, dict):
-        issues = result.get("issues", [])
-        return issues if isinstance(issues, list) else []
-    return []
+def _jira_search(jql, page_token=None):
+    arguments = {
+        "jql": jql,
+        "fields": "summary,status,updated",
+        "limit": SEARCH_PAGE_SIZE,
+    }
+    if page_token:
+        arguments["page_token"] = page_token
+    result = jira_call("jira_search", arguments)
+    if result is None or not isinstance(result, dict):
+        return None
+    issues = result.get("issues")
+    if not isinstance(issues, list):
+        return None
+    return issues, result.get("next_page_token")
 
 
-def _jira_search(jql):
-    result = jira_call(
-        "jira_search",
-        {
-            "jql": jql,
-            "fields": "summary,status,labels,created,updated,assignee,description,issuetype",
-            "limit": 20,
-        },
-    )
-    return None if result is None else _normalize_search_result(result)
+def _jira_search_all(jql):
+    issues = []
+    page_token = None
+    while True:
+        page = _jira_search(jql, page_token)
+        if page is None:
+            return None
+        page_issues, next_page_token = page
+        issues.extend(page_issues)
+        if next_page_token is None:
+            return issues
+        if not isinstance(next_page_token, str) or not next_page_token:
+            return None
+        if next_page_token == page_token:
+            return None
+        page_token = next_page_token
 
 
 def _comment_body_text(value):
@@ -172,6 +187,64 @@ def _format_work(issue, reason, task=None, comment=None):
     return "\n".join(lines)
 
 
+def _classify_issues(issues, tasks):
+    work = {bucket: [] for bucket in ("active", "paused", "retest", "followup", "new")}
+    for issue in issues:
+        issue_key = issue.get("key")
+        if not issue_key:
+            continue
+        task = tasks.get(issue_key)
+        if not task:
+            work["new"].append((issue, None, None))
+            continue
+
+        task_status = task.get("status")
+        if task_status in ACTIVE_STATUSES:
+            work["active"].append((issue, task, None))
+            continue
+        if task_status not in {"paused", "done"} or not _issue_updated_after_task(
+            issue, task
+        ):
+            continue
+
+        comments = _get_issue_comments(issue_key)
+        if comments is None:
+            return (
+                None,
+                f"Could not read Jira comments for {issue_key}; refusing to guess retest state",
+            )
+        comment = _latest_unaddressed_comment(comments, task)
+        if not comment:
+            continue
+        if task_status == "paused":
+            work["paused"].append((issue, task, comment))
+        else:
+            bucket = "retest" if comment[2].strip() == "/retest" else "followup"
+            work[bucket].append((issue, task, comment))
+    return work, None
+
+
+def _select_work(work):
+    for bucket, reason in (
+        ("active", "resume interrupted test work"),
+        ("paused", "human reply received; resume test work"),
+        ("retest", "explicit retest request received"),
+        (
+            "followup",
+            "new unaddressed comment after completed test; assess whether it requests a retest or other action",
+        ),
+        ("new", "new labeled UI-testing ticket"),
+    ):
+        if work[bucket]:
+            return bucket, work[bucket][0], reason
+    return None
+
+
+def _capacity_full():
+    active_count, max_count = get_capacity()
+    return active_count >= max_count
+
+
 def main():
     if not INSTANCE_ID:
         output_result("error", "BOT_INSTANCE_ID is required for UI-test task isolation")
@@ -196,96 +269,35 @@ def main():
             return
         tasks = _task_map(task_result)
         jql = f'labels = "{BOT_LABEL}" AND resolution = Unresolved ORDER BY priority DESC, created ASC'
-        issues = _jira_search(jql)
+        issues = _jira_search_all(jql)
         if issues is None:
             output_result(
                 "error", "Jira search failed; cannot safely select UI-testing work"
             )
             return
+        work, error = _classify_issues(issues, tasks)
+        if error:
+            output_result("error", error)
+            return
 
-        work = {
-            "active": [],
-            "paused": [],
-            "retest": [],
-            "followup": [],
-            "new": [],
-        }
-        for issue in issues:
-            issue_key = issue.get("key")
-            if not issue_key:
-                continue
-            task = tasks.get(issue_key)
-            if not task:
-                work["new"].append((issue, None, None))
-                continue
-
-            task_status = task.get("status")
-            if task_status in ACTIVE_STATUSES:
-                work["active"].append((issue, task, None))
-                continue
-            if task_status not in {"paused", "done"}:
-                continue
-            if not _issue_updated_after_task(issue, task):
-                continue
-
-            comments = _get_issue_comments(issue_key)
-            if comments is None:
-                output_result(
-                    "error",
-                    f"Could not read Jira comments for {issue_key}; refusing to guess retest state",
-                )
-                return
-            if task_status == "paused":
-                comment = _latest_unaddressed_comment(comments, task)
-                if comment:
-                    work["paused"].append((issue, task, comment))
-            else:
-                comment = _latest_unaddressed_comment(comments, task)
-                if comment:
-                    comment_body = comment[2].strip()
-                    bucket = "retest" if comment_body == "/retest" else "followup"
-                    work[bucket].append((issue, task, comment))
-
-        for bucket, reason in (
-            ("active", "resume interrupted test work"),
-            ("paused", "human reply received; resume test work"),
-            ("retest", "explicit retest request received"),
-            (
-                "followup",
-                "new unaddressed comment after completed test; assess whether it requests a retest or other action",
-            ),
-        ):
-            if work[bucket]:
-                issue, task, comment = work[bucket][0]
-                if bucket in {"paused", "retest", "followup"}:
-                    active_count, max_count = get_capacity()
-                    if active_count >= max_count:
-                        output_result(
-                            "skip",
-                            f"Follow-up requested for {issue.get('key')}, but task capacity is full",
-                        )
-                        return
-                output_result("start", _format_work(issue, reason, task, comment))
-                return
-
-        if work["new"]:
-            active_count, max_count = get_capacity()
-            if active_count >= max_count:
-                output_result(
-                    "skip", "UI-testing tickets are queued, but task capacity is full"
-                )
-                return
-            issue, task, comment = work["new"][0]
+        selected = _select_work(work)
+        if not selected:
             output_result(
-                "start",
-                _format_work(issue, "new labeled UI-testing ticket", task, comment),
+                "skip",
+                "No unprocessed UI-testing tickets, interrupted work, or unaddressed follow-up comments found",
             )
             return
 
-        output_result(
-            "skip",
-            "No unprocessed UI-testing tickets, interrupted work, or unaddressed follow-up comments found",
-        )
+        bucket, (issue, task, comment), reason = selected
+        if bucket in {"paused", "retest", "followup", "new"} and _capacity_full():
+            message = (
+                f"Follow-up requested for {issue.get('key')}, but task capacity is full"
+                if bucket != "new"
+                else "UI-testing tickets are queued, but task capacity is full"
+            )
+            output_result("skip", message)
+            return
+        output_result("start", _format_work(issue, reason, task, comment))
     finally:
         jira_cleanup()
         memory_cleanup()

@@ -5,9 +5,12 @@
 Use the instance-specific OpenShift template at
 [`deploy/ui-test-agent/template.yaml`](../../deploy/ui-test-agent/template.yaml).
 It adds a `stage-login-helper` sidecar to the bot pod without changing the
-shared deployment template. The helper starts Chromium with the Stage proxy,
-then serves its loopback HTTP API on port 8768. Chromium's DevTools endpoint is
-on the same pod loopback at port 9222. The agent calls `POST /sign-in` through
+shared deployment template. The helper starts the agent's Chromium with the
+Stage proxy, then serves its loopback HTTP API on port 8768. Chromium's
+DevTools endpoint is on the same pod loopback at port 9222. For sign-in, the
+helper opens a separate temporary Chromium process without a TCP DevTools
+endpoint, submits credentials there, then copies the authenticated cookies and
+local storage into the agent browser. The agent calls `POST /sign-in` through
 the already permitted `Bash` tool and passes only a configured profile alias.
 The helper exposes no MCP tool and needs no Service or Route.
 
@@ -66,10 +69,11 @@ Keep the first deployment paused (`BOT_REPLICAS: '0'` and
 
 1. The helper sidecar starts Chromium and becomes ready; the HCC wrapper waits
    before starting the bot.
-2. Chromium reaches Stage through `devbot-proxy` and the login helper confirms
-   the signed-in User Avatar control.
-3. `org-admin` and `non-org-admin` resolve to the intended accounts and the
-   UI shows the expected org and role.
+2. The private login browser reaches Stage through `devbot-proxy`, signs in,
+   and installs the session in the agent browser without exposing the password
+   through its CDP endpoint.
+3. `org-admin` and `non-org-admin` each resolve to the intended accounts after
+   the cooldown, including when switching personas without restarting the sidecar.
 4. An immediate repeated login call is blocked for five minutes. The workflow
    stops after an authentication failure; a later cycle can retry after the
    cooldown without restarting the sidecar.

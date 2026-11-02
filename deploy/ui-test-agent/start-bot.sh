@@ -1,15 +1,9 @@
 #!/bin/bash
 set -eu
 
-health_url="${UI_TEST_LOGIN_HELPER_HEALTH_URL:-http://127.0.0.1:8768/health}"
-timeout="${UI_TEST_LOGIN_HELPER_HEALTH_TIMEOUT:-120}"
-
-case "$timeout" in
-    ''|*[!0-9]*)
-        echo "FATAL: UI_TEST_LOGIN_HELPER_HEALTH_TIMEOUT must be an integer" >&2
-        exit 64
-        ;;
-esac
+port="${UI_TEST_LOGIN_HELPER_PORT:-8768}"
+health_url="http://127.0.0.1:${port}/health"
+timeout=120
 
 elapsed=0
 # The helper sidecar starts Chromium with the Stage-only proxy. Wait until its

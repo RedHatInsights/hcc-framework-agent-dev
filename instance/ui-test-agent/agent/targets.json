@@ -1,9 +1,7 @@
 {
-  "schema_version": 1,
   "default_urls": {
     "dev": "https://console.dev.redhat.com",
     "prod": "https://console.redhat.com",
     "stage": "https://console.stage.redhat.com"
-  },
-  "applications": {}
+  }
 }

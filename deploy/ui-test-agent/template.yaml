@@ -29,6 +29,8 @@ parameters:
   value: ""
 - name: UI_TEST_CREDENTIALS_SECRET
   value: ui-test-agent-credentials
+- name: UI_TEST_LOGIN_HELPER_PORT
+  value: "8768"
 - name: GCP_PROJECT_ID
   required: true
 - name: GCP_REGION
@@ -116,8 +118,6 @@ objects:
             value: http://devbot-memory-server:8080/health
           - name: BOT_MEMORY_HEALTH_TIMEOUT
             value: "120"
-          - name: UI_TEST_LOGIN_HELPER_HEALTH_URL
-            value: http://127.0.0.1:8768/health
           # Vertex AI — auth proxied through proxy container
           - name: CLAUDE_CODE_SKIP_VERTEX_AUTH
             value: "true"
@@ -196,6 +196,8 @@ objects:
           # separate from HTTP(S)_PROXY so agent and Jira traffic is unchanged.
           - name: UI_BROWSER_PROXY
             value: http://devbot-proxy:3128
+          - name: UI_TEST_LOGIN_HELPER_PORT
+            value: ${UI_TEST_LOGIN_HELPER_PORT}
           - name: NO_PROXY
             value: devbot-memory-server,devbot-proxy,localhost,127.0.0.1
           - name: no_proxy
@@ -225,7 +227,7 @@ objects:
           - --host
           - 127.0.0.1
           - --port
-          - "8768"
+          - ${UI_TEST_LOGIN_HELPER_PORT}
           env:
           - name: UI_BROWSER_PROXY
             value: http://devbot-proxy:3128
@@ -247,23 +249,32 @@ objects:
             exec:
               command:
               - /usr/bin/curl
+              - --max-time
+              - "2"
               - -fsS
-              - http://127.0.0.1:8768/health
+              - http://127.0.0.1:${UI_TEST_LOGIN_HELPER_PORT}/health
+            timeoutSeconds: 3
             failureThreshold: 60
             periodSeconds: 2
           readinessProbe:
             exec:
               command:
               - /usr/bin/curl
+              - --max-time
+              - "2"
               - -fsS
-              - http://127.0.0.1:8768/health
+              - http://127.0.0.1:${UI_TEST_LOGIN_HELPER_PORT}/health
+            timeoutSeconds: 3
             periodSeconds: 5
           livenessProbe:
             exec:
               command:
               - /usr/bin/curl
+              - --max-time
+              - "2"
               - -fsS
-              - http://127.0.0.1:8768/health
+              - http://127.0.0.1:${UI_TEST_LOGIN_HELPER_PORT}/health
+            timeoutSeconds: 3
             periodSeconds: 15
           resources:
             requests:

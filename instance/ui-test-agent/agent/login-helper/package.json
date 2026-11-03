@@ -1,0 +1,9 @@
+{
+  "name": "ui-test-agent-stage-auth",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@redhat-cloud-services/playwright-test-auth": "0.0.2",
+    "playwright": "1.64.0"
+  }
+}

@@ -78,7 +78,7 @@ objects:
 #   3. NetworkPolicies (restricted egress and Prometheus metrics ingress)
 #
 # Prerequisites (deployed by platform-frontend-ai-dev):
-#   - devbot-proxy       (ports 3128, 9090, 8443, 8444, 8446, 8450)
+#   - devbot-proxy       (ports 3128, 8443, 8444, 8446, 8447, 8450, 9090)
 #   - devbot-memory-server (port 8080)
 #   - devbot-secrets     (Vault secret with git identity + credentials)
 #   - KEDA installed in namespace
@@ -212,6 +212,9 @@ objects:
           # Proxy — shared pod deployed by platform-frontend-ai-dev
           - name: PROXY_HOST
             value: devbot-proxy
+          # Git clone/fetch/push use the host-scoped Git auth proxy rewrite.
+          - name: GIT_AUTH_PROXY_HOST
+            value: devbot-proxy
           - name: HTTP_PROXY
             value: http://devbot-proxy:3128
           - name: HTTPS_PROXY
@@ -293,6 +296,8 @@ objects:
       - port: 8444
         protocol: TCP
       - port: 8446
+        protocol: TCP
+      - port: 8447
         protocol: TCP
       - port: 8450
         protocol: TCP

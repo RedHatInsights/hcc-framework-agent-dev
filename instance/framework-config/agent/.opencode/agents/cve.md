@@ -1,7 +1,7 @@
 ---
 description: Remediates CVEs and verifies package or container fixes.
 mode: subagent
-model: rehor-openai/gpt-6-luna
+model: rehor-openai/gpt-6.1-terra
 request:
   body:
     reasoning:

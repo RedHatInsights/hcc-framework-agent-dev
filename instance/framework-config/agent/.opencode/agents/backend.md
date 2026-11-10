@@ -1,7 +1,7 @@
 ---
 description: Implements backend service changes in Go or Node.js repositories.
 mode: subagent
-model: rehor-openai/gpt-6-luna
+model: rehor-openai/gpt-6.1-terra
 request:
   body:
     reasoning:

@@ -1,7 +1,7 @@
 ---
 description: Implements Kubernetes and OpenShift operator changes in Go.
 mode: subagent
-model: rehor-openai/gpt-6-luna
+model: rehor-openai/gpt-6.1-terra
 request:
   body:
     reasoning:

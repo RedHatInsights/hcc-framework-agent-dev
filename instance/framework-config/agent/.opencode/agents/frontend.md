@@ -1,7 +1,7 @@
 ---
 description: Implements and visually verifies HCC React and PatternFly frontend changes.
 mode: subagent
-model: rehor-openai/gpt-6-luna
+model: rehor-openai/gpt-6.1-terra
 request:
   body:
     reasoning:

@@ -1,7 +1,7 @@
 ---
 description: Implements shared build, container, proxy, shell, and CI tooling changes.
 mode: subagent
-model: rehor-openai/gpt-6-luna
+model: rehor-openai/gpt-6.1-terra
 request:
   body:
     reasoning:

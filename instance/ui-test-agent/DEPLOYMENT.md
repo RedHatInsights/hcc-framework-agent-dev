@@ -38,7 +38,7 @@ code and phase.
 Create a dedicated Vault-backed Kubernetes Secret in the same namespace as the
 bot Deployment. The App Interface namespace config references
 `app-interface/platform-frontend-ai-dev/stage/ui-test-agent-credentials`
-(initial Vault version `1`) and creates the Kubernetes Secret
+(currently at Vault version `3`) and creates the Kubernetes Secret
 `ui-test-agent-credentials`. The helper mounts it read-only at
 `/var/run/ui-test-credentials`. The bot container does not mount this volume or
 receive the profile values as environment variables.
@@ -61,17 +61,15 @@ longer consumed and can be removed during the next Vault update.
 
 The Konflux `chrome-credentials-secret` is in the Konflux tenant namespace and
 cannot be mounted directly by this agent. Provision the referenced App
-Interface Vault secret with the field mapping above; the namespace reference
-expects its first version to be `1`. Do not copy credential values into this
-repo, Jira, or model configuration. If the Vault secret already exists at a
-different version, update the namespace reference to that version.
+Interface Vault secret with the field mapping above. Keep the namespace's Vault
+version reference aligned if the secret is updated. Do not copy credential
+values into this repo, Jira, or model configuration.
 
 ## Deployment handoff
 
 The repository template, HCC-owned startup wrapper, paused App Interface Stage
 resource, and namespace reference for the dedicated Secret are prepared. The
-Vault data must still be provisioned at the referenced path before the resource can be
-reconciled. The current resource targets
+current resource targets
 `platform-frontend-ai-dev-stage`, where the quality monitor shares the proxy
 and memory server.
 

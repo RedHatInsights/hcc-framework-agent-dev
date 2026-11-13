@@ -101,7 +101,7 @@ objects:
           - tini
           - --
           - /bin/bash
-          - /home/botuser/app/deploy/ui-test-agent/start-bot.sh
+          - /home/botuser/app/instance/ui-test-agent/start-bot.sh
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false

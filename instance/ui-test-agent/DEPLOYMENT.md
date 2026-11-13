@@ -22,6 +22,17 @@ memory, and model traffic keep their existing routing. The proxy allowlist
 includes Red Hat domains, but Stage reachability still needs validation from
 the deployed pod.
 
+The stage-login-helper container writes one-line JSON diagnostics to stderr
+for startup and each login attempt. Event, status, and reason_code identify
+the outcome; browser failures also include an allowlisted phase, and login
+attempts include elapsed milliseconds. These records omit aliases, credentials,
+URLs, raw exceptions, and browser output. A Lockdown exception or rendered
+Lockdown page is logged as status blocked with reason_code proxy_lockdown.
+Explicit invalid or incorrect username or password messages are classified as
+status authentication_failed with reason_code sso_rejected_credentials; the
+message text itself is not logged. Other SSO failures retain a generic reason
+code and phase.
+
 ## Credential Secret
 
 Create a dedicated Vault-backed Kubernetes Secret in the same namespace as the

@@ -3,6 +3,22 @@ source: scheduled
 runtime: opencode
 provider: rehor-openai
 model: gpt-6-luna
+image:
+  repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+  tag: latest
+env:
+  BOT_INSTANCE_ID: Judge Dredd
+  BOT_LABEL: hcc-ai-quality
+  BOT_CONFIG_PATH: instance/quality-monitor
+  BOT_EXECUTION_ENGINE: coordinator
+preflights:
+  - hcc-quality-jira-feedback
+  - id: hcc-merged-pr-violations
+    with:
+      scan_only_repos: [insights-chrome, landing-page-frontend, astro-virtual-assistant-frontend]
+  - id: hcc-test-anti-pattern-scan
+    with:
+      scan_only_repos: [insights-chrome, landing-page-frontend, astro-virtual-assistant-frontend]
 envs:
   - slack
   - node

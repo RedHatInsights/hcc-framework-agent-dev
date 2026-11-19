@@ -5,7 +5,7 @@ provider: rehor-openai
 model: gpt-6-luna
 image:
   repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
-  tag: hypershell-migration-pending
+  tag: latest
 env:
   BOT_INSTANCE_ID: Karel Čtvrtý, Otec vlasti z Karlštejna
   BOT_LABEL: hcc-ai-manager

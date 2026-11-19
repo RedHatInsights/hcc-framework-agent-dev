@@ -3,6 +3,19 @@ source: scheduled
 runtime: opencode
 provider: rehor-openai
 model: gpt-6-luna
+image:
+  repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+  tag: hypershell-migration-pending
+preflight:
+  env:
+    BOT_INSTANCE_ID: Karel Čtvrtý, Otec vlasti z Karlštejna
+    BOT_LABEL: hcc-ai-manager
+    BOT_CONFIG_PATH: instance/manager-tasks
+    BOT_EXECUTION_ENGINE: coordinator
+preflights:
+  - id: hcc-weekly-report
+    with:
+      repo: RedHatInsights/weekly-status
 envs:
   - slack
   - node

@@ -7,7 +7,7 @@ provider: rehor-openai
 model: gpt-6.1-terra
 image:
   repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
-  tag: hypershell-migration-pending
+  tag: latest
 env:
   BOT_INSTANCE_ID: Řehoř Hrubý z Jelení
   BOT_LABEL: hcc-ai-bot

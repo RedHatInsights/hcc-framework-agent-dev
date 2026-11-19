@@ -13,11 +13,10 @@ below are complete.
    dispatchers do not read it. Update the `dev-bot` submodule to a
    merged Rehor revision containing the matching sandbox runtime, then build and
    promote a new HCC Framework runner image containing these profile and workflow
-   changes. The current `hypershell-migration-pending` image tags are placeholders,
-   not deployable images. Replace all four tags with the promoted immutable tag in
-   a follow-up config change. The dispatcher checks out the config repository and
-   its pinned submodule separately from the baked runner image; their runtime,
-   profile, and workflow contents must be compatible.
+   changes. Verify the configured `latest` tag resolves to that compatible image
+   before enabling dispatch; the tag can change. The dispatcher checks out the
+   config repository and its pinned submodule separately from the baked runner
+   image; their runtime, profile, and workflow contents must be compatible.
 2. Confirm the three instance IDs, labels and Jira board settings against the
    current deployment. They are copied from the stage configuration; changing an
    instance ID can hide its existing tasks. The Jira sprint preflight currently

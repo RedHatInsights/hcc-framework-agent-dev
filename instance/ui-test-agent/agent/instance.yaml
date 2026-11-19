@@ -2,7 +2,7 @@ workflow: ./workflows/ui-test
 source: jira
 image:
   repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
-  tag: hypershell-migration-pending
+  tag: latest
 env:
   BOT_INSTANCE_ID: HCC UI Testing Agent
 preflights: []

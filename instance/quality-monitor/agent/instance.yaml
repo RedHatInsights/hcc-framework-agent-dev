@@ -6,12 +6,11 @@ model: gpt-6-luna
 image:
   repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
   tag: hypershell-migration-pending
-preflight:
-  env:
-    BOT_INSTANCE_ID: Judge Dredd
-    BOT_LABEL: hcc-ai-quality
-    BOT_CONFIG_PATH: instance/quality-monitor
-    BOT_EXECUTION_ENGINE: coordinator
+env:
+  BOT_INSTANCE_ID: Judge Dredd
+  BOT_LABEL: hcc-ai-quality
+  BOT_CONFIG_PATH: instance/quality-monitor
+  BOT_EXECUTION_ENGINE: coordinator
 preflights:
   - hcc-quality-jira-feedback
   - id: hcc-merged-pr-violations

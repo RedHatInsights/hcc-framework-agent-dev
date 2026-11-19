@@ -8,7 +8,9 @@ below are complete.
 ## Before rollout
 
 1. Merge [Rehor PR #667](https://github.com/OpenShift-Fleet/rehor/pull/667) and
-   deploy a dispatcher image containing it. Update the `dev-bot` submodule to a
+   [PR #668](https://github.com/OpenShift-Fleet/rehor/pull/668), then deploy a
+   dispatcher image containing both. Top-level `env` requires #668; older
+   dispatchers do not read it. Update the `dev-bot` submodule to a
    merged Rehor revision containing the matching sandbox runtime, then build and
    promote a new HCC Framework runner image containing these profile and workflow
    changes. The current `hypershell-migration-pending` image tags are placeholders,

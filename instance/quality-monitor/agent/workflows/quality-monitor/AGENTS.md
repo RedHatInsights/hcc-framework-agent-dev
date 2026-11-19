@@ -11,6 +11,9 @@ for Python/Claude rollback; this file contains active OpenCode workflow rules.
   CI; P2 high-severity test anti-patterns; P3 medium/low anti-patterns.
 - For P0, handle one Jira comment, Slack reply, or task-status update; transition
   tickets from In Progress to Done only when work is complete.
+- For Jira feedback, resume the task named by the preflight rather than creating
+  a new task. After addressing the feedback, update `last_addressed` and the
+  task summary; keep it active while further Jira feedback is expected.
 
 ## Merge violations
 
@@ -22,8 +25,11 @@ for Python/Claude rollback; this file contains active OpenCode workflow rules.
 - Create an RHCLOUD Bug with High priority and labels `quality`, `ci-failure`,
   `needs-investigation`. Include PR/repo/merge/author details, failed checks,
   action items, and direct links. Notify the team in Slack and tag the owner.
-- Track a task with `source_type: jira`, the same external key, ticket/PR
-  metadata, failed checks, severity, and creation time.
+- Track a task with `source_type: jira`, external key
+  `merge-violation:{repo}:{pr_number}`, `instance_id` set to the value of
+  `BOT_INSTANCE_ID`, `repo`, `status: in_progress`, and `metadata.jira_key` set
+  to the created ticket key. Include ticket/PR metadata, failed checks, severity,
+  and creation time. Keep it active until work is done.
 
 ## Test anti-patterns
 
@@ -36,7 +42,14 @@ for Python/Claude rollback; this file contains active OpenCode workflow rules.
   `anti-patterns`; group a repo's related findings into one ticket.
 - Send Slack notification for 5+ HIGH findings and repeat offenders (3+ in
   30 days). Include repo, scan date, counts, top patterns, and ticket link.
-- Track findings and created ticket in a memory task with scan date and counts.
+- Track ticketed findings with `source_type: jira`, `status: in_progress`,
+  `instance_id` set to the value of `BOT_INSTANCE_ID`, `repo`, scan date, counts,
+  and `metadata.jira_key` set to the ticket key.
+- For HyperShell preflight results, once analysis of a repo is complete, record
+  its supplied Task ID as the external key. If no ticket is needed, create a
+  `source_type: manual`, `status: done` task with that key, instance ID, repo,
+  scan date and counts. Do not create the scan marker before analysis finishes.
+  Leave other repos untracked until their own analysis is complete.
 
 ## Completion and errors
 

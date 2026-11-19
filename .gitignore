@@ -48,6 +48,7 @@ htmlcov/
 !README.md
 !CLAUDE.md
 !DEPLOYMENT.md
+!HYPERSHELL-MIGRATION.md
 !instance/ui-test-agent/JIRA-REQUEST-TEMPLATE.md
 instance/ui-test-agent/agent/login-helper/node_modules/
 !**/AGENTS.md

@@ -5,6 +5,25 @@ source: jira
 runtime: opencode
 provider: rehor-openai
 model: gpt-6.1-terra
+image:
+  repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+  tag: hypershell-migration-pending
+preflight:
+  env:
+    BOT_INSTANCE_ID: Řehoř Hrubý z Jelení
+    BOT_LABEL: hcc-ai-bot
+    BOT_BOARD_NAME: HCC Framework
+    BOT_SPRINT_PREFIX: HCC framework Sprint
+    BOT_INCLUDE_BACKLOG: 'true'
+    BOT_CONFIG_PATH: instance/framework-config
+    BOT_EXECUTION_ENGINE: coordinator
+preflights:
+  - gh-pr-status
+  - gl-mr-status
+  - id: jira-sprint
+    with:
+      label: hcc-ai-bot
+      include_backlog: true
 envs:
   - node
   - go

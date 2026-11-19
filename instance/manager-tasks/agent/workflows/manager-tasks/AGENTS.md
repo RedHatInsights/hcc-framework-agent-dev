@@ -9,8 +9,11 @@ for Python/Claude rollback; this file contains active OpenCode workflow rules.
   use preflight values for week, branch, and report type.
 - Stable task ID: `{task-name}-{YYYY-MM-DD}` across generate, feedback, and merge.
 - `task_status: new`: create task with that ID as `external_key` and
-  `source_type: scheduled`. `in_progress`: continue existing task. End each
-  cycle with `task_update` including status, summary, and metadata.
+  `source_type: scheduled` and `instance_id` set to the value of
+  `BOT_INSTANCE_ID`. `in_progress`:
+  continue existing task. Record the report PR in task metadata and update
+  `last_addressed` after handling feedback. End each cycle with `task_update`
+  including status, summary, and metadata.
 - All report scripts, prompts, and context live in `hp-weekly-status` from
   `project-repos.json`; do not recreate them in the bot repo.
 

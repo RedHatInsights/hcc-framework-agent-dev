@@ -39,4 +39,4 @@ Name the configured profile alias if this request needs a specific user context.
 Known limitations, related tickets, previous results, or feature-owner context.
 ```
 
-The agent derives an initial test plan from the description and refines it through exploration. It asks follow-up questions only when missing target, access, expected behavior, or safety boundaries prevent a useful or safe run.
+The agent derives an initial test plan from the description and refines it through exploration. It asks follow-up questions only when missing target, access, expected behavior, or safety boundaries prevent a useful or safe run. The reusable test plan and the run-specific release-readiness recommendation are delivered as separate Jira attachments.

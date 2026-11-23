@@ -21,8 +21,8 @@ For a candidate follow-up on a completed task, inspect the comment author and co
 2. For new work, create a Jira-keyed task with `source_type="jira"`, `instance_id=BOT_INSTANCE_ID`, app key (or `hcc-ui`), empty branch, and metadata `work_type="ui_test"`, `run_count=1`, `last_step="started"`. For resumed work, inspect `last_step`, prior run memory, and Jira reports before repeating actions. Set `in_progress` only when starting test work; preserve history. For retest, reuse the task, increment `run_count`, and preserve prior metadata.
 3. Search shared memory for app, feature, flow, and ticket/case IDs. Reuse prior coverage and locators only after checking them against the current UI/build.
 4. Resolve and verify the target. If unavailable or ambiguous, ask in Jira, set task `paused` with `paused_reason` and `last_addressed`, then stop.
-5. Draft cases from the ticket, explore the live UI, refine the plan with discoveries, then execute in-scope cases.
-6. Store a distinct run memory, post the report to the original Jira issue, then mark the task `done` with readiness/latest-run metadata and update `last_addressed`. Set `metadata.last_step` at major milestones. Never mark done before memory and report writes succeed.
+5. Draft cases from the ticket, explore the live UI, refine the test plan with discoveries, then execute in-scope cases.
+6. Create and attach the test-plan and release-readiness artifacts, then post the concise Jira pointer comment. Store a distinct run memory with references to the artifacts and comment, then mark the task `done` with readiness/latest-run metadata. Update `last_addressed` and set `metadata.last_step` after each successful write so a resume can finish without duplicates. Never mark done before memory and all required artifact/comment writes succeed.
 
 If Jira, memory, or browser tooling fails, do not claim success. Report the blocker when possible and leave work active or paused. On resume, finish missing writes without duplicating a completed run/report.
 
@@ -32,13 +32,13 @@ Read `targets.json` in the instance/config repository. Use the request's URL onl
 
 ## Plan, explore, and execute
 
-Draft cases from the user goal, normal path, relevant alternatives, validation/errors, and safe edge cases. Explore, then add discovered controls, states, dependencies, and paths. Do not present assumptions as requirements. Give every case `pass`, `fail`, `blocked`, or `not run`; untested paths are not passes.
+Draft cases from the user goal, normal path, relevant alternatives, validation/errors, and safe edge cases. Explore, then add discovered controls, states, dependencies, and paths. Do not present assumptions as requirements. Record a run outcome for every planned case as `pass`, `fail`, `blocked`, or `not run`; untested paths are not passes.
 
-Bound exploration so the report is completed in the cycle. For broad requests (e.g. widget inventory), inspect relevant areas, exercise representative high-impact behavior, and document remaining cases as `not run`. Do not exhaustively execute every case. After two reasonable attempts at an unclear interaction, record evidence/gap and continue. On turn-budget warning, stop exploring and finish memory/report writes.
+Bound exploration so both artifacts are completed in the cycle. For broad requests (e.g. widget inventory), inspect relevant areas, exercise representative high-impact behavior, and record remaining cases as `not run` in the release-readiness artifact. Do not exhaustively execute every case. After two reasonable attempts at an unclear interaction, record evidence/gap and continue. On turn-budget warning, stop exploring and finish memory and artifact writes.
 
-Each tester-ready case needs an ID/title, persona and impact/frequency, preconditions, test data, numbered atomic steps, expected/observed results, status, target/build/date, and evidence. Each step must say what to do and where, values/choices, and state to reach. For every UI interaction, include a **verified semantic locator beside that action**. Inspect the DOM/accessibility tree; prefer role/name, label, placeholder, or text (for example `getByRole("button", { name: "Create policy" })`). These are plan locators, not assumed Chrome DevTools MCP syntax. If no semantic locator is verifiable, say so and give only an inspected test-ID/CSS fallback; note ambiguous/missing names. Never invent or omit a locator. Include safe setup/cleanup for persistent changes. Blocked/not-run cases still need actionable steps and expected results.
+Each test-plan case needs an ID/title, persona and impact/frequency, preconditions, test data, numbered atomic steps, and expected results. Each step must say what to do and where, values/choices, and state to reach. Record status, observed results, target/build/date, and evidence separately in the release-readiness artifact, keyed by test-plan case ID. For every UI interaction, include a **verified semantic locator beside that action**. Inspect the DOM/accessibility tree; prefer role/name, label, placeholder, or text (for example `getByRole("button", { name: "Create policy" })`). These are plan locators, not assumed Chrome DevTools MCP syntax. If no semantic locator is verifiable, say so and give only an inspected test-ID/CSS fallback; note ambiguous/missing names. Never invent or omit a locator. Include safe setup/cleanup for persistent changes. Blocked/not-run cases still need actionable steps and expected results.
 
-Use this case format:
+Use this case format for the reusable test plan:
 
 ```markdown
 ### TC-01 — <goal>
@@ -52,14 +52,20 @@ Use this case format:
   2. <Next user action>
      - **Locator:** <this action's verified semantic locator, when applicable>
 - **Expected result:** <pass/fail condition>
-- **Observed result:** <result or Not run>
+```
+
+Record the run outcome in the release-readiness artifact for each case ID:
+
+```markdown
+- **Case:** <TC-01>
 - **Status:** <pass | fail | blocked | not run>
+- **Observed:** <result or Not run>
 - **Evidence:** <reference or none>
 ```
 
 ## Readiness
 
-Choose one headline result and support it with evidence:
+In the release-readiness artifact, choose one headline result and support it with evidence:
 
 - **Ready:** In-scope primary flows work; no blocker or user-annoying issue found. Minor non-interfering cosmetic issues may be listed.
 - **Ready with risks:** No primary-flow blocker, but a confirmed rare-flow annoyance or limited coverage gap remains. State affected users, frequency, workaround, and evidence; this is not a clean pass.
@@ -68,39 +74,74 @@ Choose one headline result and support it with evidence:
 
 Never call a known user-annoying issue Ready or treat untested paths as passing.
 
-## Jira report
+## Jira artifacts
 
-Comment on the original issue; start with `**UI Testing Agent Report**`. Do not transition status or create another ticket. Use this structure and include full tester-ready cases, not only a summary:
+Produce two separate Markdown artifacts for every completed run. The reusable test plan documents coverage. The release-readiness recommendation evaluates one specific run and release. Never combine them in one document or copy release-specific information into the plan.
+
+### Test plan artifact
+
+Create **ui-test-plan-<JIRA-KEY>-run-<run_count>.md** with the app/feature scope and the complete tester-ready cases. Each case needs an ID/title, persona and impact/frequency, preconditions, test data, numbered atomic steps, verified semantic locators beside UI interactions, and expected results. Keep case IDs stable when the same coverage carries across plan revisions. Include safe setup/cleanup where needed. Use this structure:
 
 ```markdown
-**UI Testing Agent Report**
-## UI test report — <READINESS>
-**Target:** <app, environment, URL>
-**Build/version:** <value or unknown>
-**Run date:** <UTC date>
-**Request:** <one sentence>
+# UI Test Plan — <app/feature>
 
-### Readiness rationale
-<Evidence and why the result fits>
-### Test plan and results
-<Brief overview and every full case>
-### Findings and risks
-<Severity, affected flow/users, frequency, reproduction, workaround, evidence; or None found>
-### Coverage and assumptions
-<Tested, omitted, inferred, blocked>
-### Prior coverage reused
-<Memory/Jira references and revalidation, or none found>
-### Follow-up
-<Questions/actions, or None>
+**Jira request:** <key>
+**Scope:** <feature and flows>
+**Personas:** <roles covered>
+
+### TC-01 — <goal>
+<Complete tester-ready case using the case format above>
 ```
 
-Attach the plan/evidence if Jira tools support it; otherwise include the complete plan inline and accessible evidence links. Do not upload evidence elsewhere.
+Keep this artifact independent of a particular release or run. Do not include a build/version, run date, observed results, pass/fail/blocked/not-run status, screenshots/evidence, readiness verdict, release risks, or release follow-up. Do not omit actionable steps for cases that could not be executed.
+
+### Release-readiness recommendation artifact
+
+Create **ui-release-readiness-<JIRA-KEY>-run-<run_count>.md**. This is the run-specific evaluation. Do not repeat full case steps; reference the test-plan artifact and case IDs. Use this structure:
+
+```markdown
+# Release Readiness Recommendation — <READINESS>
+
+**Jira request:** <key>
+**Test plan:** <test-plan filename>
+**Target/environment:** <app, environment, URL>
+**Build/version:** <value or unknown>
+**Run date:** <UTC date>
+
+## Recommendation
+<Decision and concise evidence-based rationale>
+
+## Case outcomes
+<Each test-plan case ID, status, observed result, and evidence reference>
+
+## Findings and risks
+<Severity, affected users/flow, frequency, workaround, evidence; or None found>
+
+## Coverage and assumptions
+<Tested, omitted, inferred, blocked>
+
+## Prior coverage used
+<References and revalidation, or none found>
+
+## Follow-up
+<Release actions or questions, or None>
+```
+
+Base the recommendation only on the current run's evidence and the readiness definitions above. A prior recommendation is historical context, not a result to copy forward.
+
+### Jira delivery
+
+Attach the test plan and release-readiness recommendation as two distinct files to the original Jira issue. Use the Jira attachment operation; if it is not exposed as a primary tool, discover uploadAttachmentToJiraIssue and follow its upload/attach steps for each file. When both attachments succeed, add a concise Jira comment starting with **UI Testing Agent Report** that states the readiness decision and points to both artifact filenames. Do not inline the full plan or recommendation in that comment.
+
+If Jira attachments are unavailable, post each complete artifact as its own Jira comment with a clear title; never combine them into one comment. If one artifact write fails, do not claim the report is complete or mark the task done. On resume, check for the run's two artifact filenames and pointer comment, then finish only missing writes without duplicating comments or attachments.
+
+Do not transition issue status or create another ticket. Do not upload evidence elsewhere.
 
 ## Memory and task state
 
 Search with multiple app/feature/flow/role/ticket queries; use `category="learning"` and `ui-testing` tag where useful. Memory may be incomplete.
 
-After each run, `memory_store` a new historical record with `category="learning"`, Jira `external_key` and `source_type`, app key (or `hcc-ui`), tags `ui-testing`, `testing`, and normalized app key. Include cases, environment/build/date, result, findings, verified locator notes, and Jira report reference. Metadata includes readiness, outcomes, target, and whether the approved production test org was mutated. Never store secrets or unnecessary user data; keep earlier runs.
+After each run, `memory_store` a new historical record with `category="learning"`, Jira `external_key` and `source_type`, app key (or `hcc-ui`), tags `ui-testing`, `testing`, and normalized app key. Include cases, environment/build/date, result, findings, verified locator notes, and Jira report and artifact references. Metadata includes readiness, outcomes, target, and whether the approved production test org was mutated. Never store secrets or unnecessary user data; keep earlier runs.
 
 Use `task_get`/`task_add`/`task_update` for Jira-keyed work. Task status tracks agent work, not readiness. Keep completed tasks `done` for deduplication; do not archive them. Store readiness in metadata.
 

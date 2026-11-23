@@ -23,6 +23,13 @@ preflights:
     with:
       label: hcc-ai-bot
       include_backlog: true
+# Legacy KEDA window of devbot-framework (deploy/template defaults): the
+# dispatcher starts no sessions outside it; in-flight sessions drain.
+schedule:
+  triggers:
+    - timezone: Europe/Prague
+      start: "0 9 * * 1-5"
+      end: "0 23 * * 1-5"
 envs:
   - node
   - go

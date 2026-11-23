@@ -29,10 +29,12 @@ below are complete.
    with `preflights: []`: discovery requires an image for every profile, but its
    sidecar-dependent workflow is not migrated and must not be dispatched here.
 4. Plan cutover so legacy runners and dispatcher never process the same instance
-   simultaneously. Verify each instance's operating window: quality and weekly
-   report preflights enforce their Prague windows; the framework Jira/PR
-   preflights do not reproduce the legacy KEDA schedule. Resolve that difference
-   before enabling framework dispatch.
+   simultaneously. Each profile's `schedule:` declaration now mirrors its legacy
+   KEDA window from app-interface (framework and quality: Mon-Fri 09:00-23:00
+   Prague; manager: Mon/Tue/Wed/Fri 07:00-21:00 Prague), so the dispatcher
+   starts no sessions outside the windows the legacy deployments used. Quality
+   and weekly report preflights keep enforcing their own finer-grained Prague
+   windows inside them; in-flight sessions drain past a window's end.
 5. Run no-work and representative work cycles. Verify weekly PR feedback and
    merge handling; quality Jira feedback on existing and unattributed tasks;
    one violation and a completed no-ticket scan; task identity and cleanup.

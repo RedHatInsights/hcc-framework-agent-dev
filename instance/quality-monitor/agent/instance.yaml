@@ -19,6 +19,14 @@ preflights:
   - id: hcc-test-anti-pattern-scan
     with:
       scan_only_repos: [insights-chrome, landing-page-frontend, astro-virtual-assistant-frontend]
+# Legacy KEDA window of devbot-framework-quality (deploy/template defaults,
+# matching the quality preflights' own Mon-Fri 09:00-23:00 Prague window):
+# the dispatcher starts no sessions outside it; in-flight sessions drain.
+schedule:
+  triggers:
+    - timezone: Europe/Prague
+      start: "0 9 * * 1-5"
+      end: "0 23 * * 1-5"
 envs:
   - slack
   - node

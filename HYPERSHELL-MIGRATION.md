@@ -26,7 +26,7 @@ roots match their single Luna primary agents.
 
 ### Catalog and allowlist gates
 
-- The pinned runner (`dev-bot` submodule `a113ed3`) declares only Luna and Terra
+- The pinned runner (`dev-bot` submodule `6b4f296`) declares only Luna and Terra
   under packaged `rehor-openai` defaults, but prices all three models. The
   instance-owned `opencode-deployment.json` is the effective catalog:
   `framework-config` declares Sol, Terra and Luna; `manager-tasks` and
@@ -47,11 +47,12 @@ roots match their single Luna primary agents.
 
 ## Before rollout
 
-1. Merge [Rehor PR #667](https://github.com/OpenShift-Fleet/rehor/pull/667) and
-   [PR #668](https://github.com/OpenShift-Fleet/rehor/pull/668), then deploy a
-   dispatcher image containing both. Top-level `env` requires #668; older
-   dispatchers do not read it. Update the `dev-bot` submodule to a
-   merged Rehor revision containing the matching sandbox runtime, then build and
+1. [Rehor PR #667](https://github.com/OpenShift-Fleet/rehor/pull/667) and
+   [PR #668](https://github.com/OpenShift-Fleet/rehor/pull/668) are merged; deploy
+   a dispatcher image containing both. Top-level `env` requires #668; older
+   dispatchers do not read it. The `dev-bot` submodule is pinned to merged Rehor
+   master `6b4f296` ([PR #679](https://github.com/OpenShift-Fleet/rehor/pull/679)),
+   which carries the matching sandbox runtime. Build and
    promote a new HCC Framework runner image containing these profile and workflow
    changes. Verify the configured `latest` tag resolves to that compatible image
    before enabling dispatch; the tag can change. The dispatcher checks out the

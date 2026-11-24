@@ -5,6 +5,46 @@ quality monitoring. It does not enable the dispatcher or replace the existing
 deployments. Do not enable this repository in the dispatcher until the gates
 below are complete.
 
+## Model tiers
+
+Role-based tiers use only the existing profiles and subagents:
+
+| Profile | Role | Model |
+|---|---|---|
+| `framework-config` | Root session and `framework-coordinator`: ticket coordination, review, delegation | `gpt-6.1-sol` |
+| `framework-config` | `rds-upgrade`: complex, high-risk staged infrastructure work | `gpt-6.1-sol` |
+| `framework-config` | `backend`, `config`, `cve`, `frontend`, `operator`, `rbac`, `tooling`: substantial implementation | `gpt-6.1-terra` |
+| `manager-tasks` | Root session and `manager-task-runner`: one bounded scheduled task per cycle | `gpt-6-luna` |
+| `quality-monitor` | Root session and `quality-monitor`: one bounded finding or feedback item per cycle | `gpt-6-luna` |
+| `ui-test-agent` | No explicit runtime or model; profile stays inert with `preflights: []` | none |
+
+The runner selects the session root model from `instance.yaml`. OpenCode keeps
+that explicitly selected session model when `default_agent` chooses a primary
+agent, so `framework-config` must use Sol at the root for the Sol coordinator;
+its subagents still use their own frontmatter models. The manager and quality
+roots match their single Luna primary agents.
+
+### Catalog and allowlist gates
+
+- The pinned runner (`dev-bot` submodule `a113ed3`) declares only Luna and Terra
+  under packaged `rehor-openai` defaults, but prices all three models. The
+  instance-owned `opencode-deployment.json` is the effective catalog:
+  `framework-config` declares Sol, Terra and Luna; `manager-tasks` and
+  `quality-monitor` declare Sol and Luna. Every selected root and subagent model
+  must be declared there.
+- The stage model proxy's `OPENAI_ALLOWED_MODELS` in app-interface
+  (`data/services/insights/platform-frontend-ai-dev/deploy.yml`) currently lists
+  `gpt-6.1-sol,gpt-6-luna,gpt-6.1-terra`. The proxy is deployment-owned and fails
+  closed with HTTP 403, so re-verify the live value after image promotion, a
+  submodule bump, or any GitOps change. This draft does not change app-interface
+  or deployment configuration.
+- A submodule bump or promoted runner image can change the packaged catalog.
+  Recheck every root and subagent selection against the deployment declarations
+  and gateway allowlist before dispatch. Do not add roles or model declarations
+  for tiers that no existing role uses.
+- In representative cycles, verify usage and transcript attribution show the
+  intended model per role, not only the configured value.
+
 ## Before rollout
 
 1. Merge [Rehor PR #667](https://github.com/OpenShift-Fleet/rehor/pull/667) and
@@ -22,9 +62,10 @@ below are complete.
    instance ID can hide its existing tasks. The Jira sprint preflight currently
    does not include the optional bot-email candidate pass because that identity
    comes from deployment secrets; validate assigned-ticket behavior before cutover.
-3. Verify dispatcher private-runtime support, model access, Git/Jira/memory and
-   Slack connectivity, required environment and sandbox policy with the promoted
-   image. Configure the dispatcher and repository in app-interface separately;
+3. Verify dispatcher private-runtime support, model tier declarations and gateway
+   allowlist, Git/Jira/memory and Slack connectivity, required environment and
+   sandbox policy with the promoted image. Configure the dispatcher and repository
+   in app-interface separately;
    this PR does not change GitOps. The UI-test profile is intentionally declared
    with `preflights: []`: discovery requires an image for every profile, but its
    sidecar-dependent workflow is not migrated and must not be dispatched here.

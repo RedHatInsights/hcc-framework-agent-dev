@@ -24,9 +24,17 @@ agent, so `framework-config` must use Sol at the root for the Sol coordinator;
 its subagents still use their own frontmatter models. The manager and quality
 roots match their single Luna primary agents.
 
+Upstream #117 moved this developing instance's implementation roles from Luna
+to Terra and set the shared root model to Terra. This draft deliberately keeps
+#117's Terra tier for every implementation subagent it upgraded and moves only
+the root session to Sol: the coordinator creates each session with the
+`instance.yaml` root model, and coordination/review is the Sol tier's role in
+the HyperShell tier policy. The reconciliation is recorded next to
+`model:` in `instance/framework-config/agent/instance.yaml`.
+
 ### Catalog and allowlist gates
 
-- The pinned runner (`dev-bot` submodule `6b4f296`) declares only Luna and Terra
+- The pinned runner (`dev-bot` submodule `bcb2c34`) declares only Luna and Terra
   under packaged `rehor-openai` defaults, but prices all three models. The
   instance-owned `opencode-deployment.json` is the effective catalog:
   `framework-config` declares Sol, Terra and Luna; `manager-tasks` and
@@ -47,14 +55,22 @@ roots match their single Luna primary agents.
 
 ## Before rollout
 
-1. [Rehor PR #667](https://github.com/OpenShift-Fleet/rehor/pull/667) and
-   [PR #668](https://github.com/OpenShift-Fleet/rehor/pull/668) are merged; deploy
-   a dispatcher image containing both. Top-level `env` requires #668; older
-   dispatchers do not read it. The `dev-bot` submodule is pinned to merged Rehor
-   master `6b4f296` ([PR #679](https://github.com/OpenShift-Fleet/rehor/pull/679)),
-   which carries the matching sandbox runtime. Build and
-   promote a new HCC Framework runner image containing these profile and workflow
-   changes. Verify the configured `latest` tag resolves to that compatible image
+1. Rehor core prerequisites are merged through master `bcb2c34`
+   ([#667](https://github.com/OpenShift-Fleet/rehor/pull/667) HCC preflights,
+   [#668](https://github.com/OpenShift-Fleet/rehor/pull/668) top-level env,
+   [#678](https://github.com/OpenShift-Fleet/rehor/pull/678),
+   [#679](https://github.com/OpenShift-Fleet/rehor/pull/679) instance env,
+   [#680](https://github.com/OpenShift-Fleet/rehor/pull/680),
+   [#681](https://github.com/OpenShift-Fleet/rehor/pull/681) tier-2 secret
+   rendering from Kubernetes Secrets,
+   [#682](https://github.com/OpenShift-Fleet/rehor/pull/682) bot instance
+   identity header encoding, and
+   [#688](https://github.com/OpenShift-Fleet/rehor/pull/688) sandbox.env
+   delivery); the `dev-bot` submodule pins exactly that revision. The
+   remaining gate on the core side is deployment: build and promote a stage
+   dispatcher image containing these revisions, then build and promote a new
+   HCC Framework runner image containing these profile and workflow changes.
+   Verify the configured `latest` tag resolves to that compatible image
    before enabling dispatch; the tag can change. The dispatcher checks out the
    config repository and its pinned submodule separately from the baked runner
    image; their runtime, profile, and workflow contents must be compatible.
@@ -81,6 +97,18 @@ roots match their single Luna primary agents.
    merge handling; quality Jira feedback on existing and unattributed tasks;
    one violation and a completed no-ticket scan; task identity and cleanup.
    Unattributed task ownership is ambiguous and Jira bot detection is heuristic.
+
+## Post-rollout opportunities
+
+- Rehor #681 (in the pinned `bcb2c34`) renders `${{ secret('name','key') }}`
+  placeholders in `sandbox.env` from tier-2 labeled Kubernetes Secrets synced
+  from Vault. This draft intentionally uses no `sandbox:` category and converts
+  no values: the stage dispatcher image with rendering support is not deployed
+  yet, and every current profile `env` value is a non-secret `BOT_*` setting.
+  Once the deployed dispatcher is confirmed and any tier-2 Secrets are
+  provisioned through app-interface, confidential per-profile values can move
+  from deployment-owned configuration into `sandbox.env` secret references
+  instead of being passed through the deployment.
 
 ## Rollback
 

@@ -6,6 +6,8 @@ runtime: opencode
 provider: rehor-openai
 # Coordination/review tier. Implementation subagents select Terra in their own
 # frontmatter; the runner-selected root model wins for the primary session.
+# #117 (gpt-6.1-terra for this developing instance) is carried by the Terra
+# implementation subagents; the root stays on the Sol coordination tier.
 model: gpt-6.1-sol
 image:
   repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev

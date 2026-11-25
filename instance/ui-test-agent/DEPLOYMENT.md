@@ -22,12 +22,23 @@ memory, and model traffic keep their existing routing. The proxy allowlist
 includes Red Hat domains, but Stage reachability still needs validation from
 the deployed pod.
 
+The stage-login-helper container writes one-line JSON diagnostics to stderr
+for startup and each login attempt. Event, status, and reason_code identify
+the outcome; browser failures also include an allowlisted phase, and login
+attempts include elapsed milliseconds. These records omit aliases, credentials,
+URLs, raw exceptions, and browser output. A Lockdown exception or rendered
+Lockdown page is logged as status blocked with reason_code proxy_lockdown.
+Explicit invalid or incorrect username or password messages are classified as
+status authentication_failed with reason_code sso_rejected_credentials; the
+message text itself is not logged. Other SSO failures retain a generic reason
+code and phase.
+
 ## Credential Secret
 
 Create a dedicated Vault-backed Kubernetes Secret in the same namespace as the
 bot Deployment. The App Interface namespace config references
 `app-interface/platform-frontend-ai-dev/stage/ui-test-agent-credentials`
-(initial Vault version `1`) and creates the Kubernetes Secret
+(currently at Vault version `3`) and creates the Kubernetes Secret
 `ui-test-agent-credentials`. The helper mounts it read-only at
 `/var/run/ui-test-credentials`. The bot container does not mount this volume or
 receive the profile values as environment variables.
@@ -50,17 +61,15 @@ longer consumed and can be removed during the next Vault update.
 
 The Konflux `chrome-credentials-secret` is in the Konflux tenant namespace and
 cannot be mounted directly by this agent. Provision the referenced App
-Interface Vault secret with the field mapping above; the namespace reference
-expects its first version to be `1`. Do not copy credential values into this
-repo, Jira, or model configuration. If the Vault secret already exists at a
-different version, update the namespace reference to that version.
+Interface Vault secret with the field mapping above. Keep the namespace's Vault
+version reference aligned if the secret is updated. Do not copy credential
+values into this repo, Jira, or model configuration.
 
 ## Deployment handoff
 
 The repository template, HCC-owned startup wrapper, paused App Interface Stage
 resource, and namespace reference for the dedicated Secret are prepared. The
-Vault data must still be provisioned at the referenced path before the resource can be
-reconciled. The current resource targets
+current resource targets
 `platform-frontend-ai-dev-stage`, where the quality monitor shares the proxy
 and memory server.
 

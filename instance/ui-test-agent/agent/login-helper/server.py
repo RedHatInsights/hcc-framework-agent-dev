@@ -10,6 +10,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -59,6 +60,61 @@ SIGN_IN_INCOMPLETE = {
     "message": "The login helper could not complete the Stage sign-in flow.",
     "credential_submission_started": True,
 }
+DIAGNOSTIC_PHASES = frozenset(
+    {
+        "validate_configuration",
+        "launch_browser",
+        "prepare_browser",
+        "navigate_to_stage",
+        "wait_for_sso_form",
+        "submit_credentials",
+        "verify_stage_session",
+        "transfer_session",
+    }
+)
+DIAGNOSTIC_CODES = frozenset(
+    {
+        "missing_login_configuration",
+        "proxy_configuration_missing",
+        "browser_page_missing",
+        "sso_form_missing",
+        "sso_rejected_credentials",
+        "proxy_lockdown",
+        "stage_return_missing",
+        "signed_in_marker_missing_after_sso",
+        "signed_in_marker_confirmed",
+        "sso_flow_error",
+        "browser_preparation_error",
+        "login_deadline_exceeded",
+        "browser_process_unhandled",
+        "password_submission_cooldown",
+        "credential_profile_unavailable",
+        "node_runtime_unavailable",
+        "browser_child_failed",
+        "browser_child_timed_out",
+        "browser_child_io_error",
+        "browser_child_invalid_result",
+        "chromium_not_found",
+        "proxy_configuration_missing",
+        "chromium_exited_before_ready",
+        "chromium_devtools_timeout",
+        "runtime_dependency_missing",
+        "startup_started",
+        "chromium_ready",
+        "helper_runtime_error",
+        "authenticated_without_submission",
+    }
+)
+DIAGNOSTIC_EVENTS = frozenset(
+    {
+        "startup",
+        "startup_failed",
+        "chromium_ready",
+        "http_server_starting",
+        "login_result",
+        "helper_runtime_failed",
+    }
+)
 
 
 class LoginResult(TypedDict, total=False):
@@ -66,6 +122,34 @@ class LoginResult(TypedDict, total=False):
     message: str
     profile_alias: str
     credential_submission_started: bool
+    diagnostic_code: str
+    diagnostic_phase: str
+
+
+def _log_diagnostic(
+    event: str,
+    *,
+    status: str,
+    reason_code: str,
+    phase: str | None = None,
+    duration_ms: int | None = None,
+) -> None:
+    """Write structured diagnostics without credentials, aliases, or raw errors."""
+    record = {
+        "component": "stage-login-helper",
+        "event": event if event in DIAGNOSTIC_EVENTS else "helper_runtime_failed",
+        "status": status,
+        "reason_code": (
+            reason_code
+            if reason_code in DIAGNOSTIC_CODES
+            else "browser_child_invalid_result"
+        ),
+    }
+    if phase in DIAGNOSTIC_PHASES:
+        record["phase"] = phase
+    if duration_ms is not None:
+        record["duration_ms"] = max(0, duration_ms)
+    print(json.dumps(record, separators=(",", ":")), file=sys.stderr, flush=True)
 
 
 def _credentials_for(alias: str) -> tuple[str, str] | None:
@@ -149,47 +233,77 @@ def _sign_in(alias: str) -> LoginResult:
     submissions are rate-limited to prevent rapid model retries.
     """
     global password_submission_at
-    now = time.monotonic()
+    started_at = time.monotonic()
+    reason_code: str
+    phase: str | None = None
     if (
         password_submission_at is not None
-        and now - password_submission_at < PASSWORD_RETRY_COOLDOWN_SECONDS
+        and started_at - password_submission_at < PASSWORD_RETRY_COOLDOWN_SECONDS
     ):
-        return {
+        result = {
             "status": "blocked",
             "message": "A password was submitted recently. Stop this request and continue on a later cycle.",
         }
-
-    credentials = _credentials_for(alias)
-    if credentials is None:
-        return {
-            "status": "blocked",
-            "message": "No credentials are configured for that profile alias.",
-        }
-
-    node = shutil.which("node")
-    if not node:
-        return {
-            "status": "blocked",
-            "message": "Node.js is unavailable to the login helper.",
-        }
-
-    result = _run_browser_login(node, *credentials)
-    status = result.get("status")
-    submission_started = bool(result.pop("credential_submission_started", False))
-    if status == "authenticated":
-        if not submission_started:
-            return {
-                "status": "login_unconfirmed",
-                "message": PUBLIC_MESSAGES["login_unconfirmed"],
+        reason_code = "password_submission_cooldown"
+    else:
+        credentials = _credentials_for(alias)
+        if credentials is None:
+            result = {
+                "status": "blocked",
+                "message": "No credentials are configured for that profile alias.",
             }
-        result["profile_alias"] = alias
-    if status == "authentication_failed" or submission_started:
-        password_submission_at = time.monotonic()
+            reason_code = "credential_profile_unavailable"
+        else:
+            node = shutil.which("node")
+            if not node:
+                result = {
+                    "status": "blocked",
+                    "message": "Node.js is unavailable to the login helper.",
+                }
+                reason_code = "node_runtime_unavailable"
+            else:
+                result = _run_browser_login(node, *credentials)
+                reason_code = result.pop(
+                    "diagnostic_code", "browser_child_invalid_result"
+                )
+                phase = result.pop("diagnostic_phase", None)
+                submission_started = bool(
+                    result.pop("credential_submission_started", False)
+                )
+                status = result.get("status")
+                if status == "authenticated":
+                    if not submission_started:
+                        result = {
+                            "status": "login_unconfirmed",
+                            "message": PUBLIC_MESSAGES["login_unconfirmed"],
+                        }
+                        reason_code = "authenticated_without_submission"
+                    else:
+                        result["profile_alias"] = alias
+                if status == "authentication_failed" or submission_started:
+                    password_submission_at = time.monotonic()
+
+    _log_diagnostic(
+        "login_result",
+        status=result.get("status", "blocked"),
+        reason_code=reason_code,
+        phase=phase,
+        duration_ms=int((time.monotonic() - started_at) * 1000),
+    )
     return result
 
 
+def _browser_child_failure(
+    reason_code: str, *, credential_submission_started: bool
+) -> LoginResult:
+    failure: LoginResult = dict(SIGN_IN_INCOMPLETE)
+    failure["credential_submission_started"] = credential_submission_started
+    failure["diagnostic_code"] = reason_code
+    return failure
+
+
 def _run_browser_login(node: str, username: str, password: str) -> LoginResult:
-    """Run the isolated browser flow and accept only its public status result."""
+    """Run the isolated browser flow and retain only allowlisted diagnostics."""
     helper_env = {
         "PATH": os.environ.get("PATH", ""),
         "HOME": os.environ.get("HOME", ""),
@@ -227,26 +341,48 @@ def _run_browser_login(node: str, username: str, password: str) -> LoginResult:
                 except ProcessLookupError:
                     pass
                 process.communicate()
-        return dict(SIGN_IN_INCOMPLETE)
+        return _browser_child_failure(
+            "browser_child_timed_out", credential_submission_started=True
+        )
     except OSError:
-        return {
-            "status": "blocked",
-            "message": PUBLIC_MESSAGES["blocked"],
-            "credential_submission_started": False,
-        }
+        return _browser_child_failure(
+            "browser_child_io_error", credential_submission_started=False
+        )
 
     try:
         payload = json.loads(stdout) if stdout.strip() else {}
     except json.JSONDecodeError:
-        return dict(SIGN_IN_INCOMPLETE)
+        return _browser_child_failure(
+            "browser_child_invalid_result", credential_submission_started=True
+        )
     status = payload.get("status") if isinstance(payload, dict) else None
     if (
         process.returncode != 0
         or not isinstance(status, str)
         or status not in PUBLIC_MESSAGES
     ):
-        return dict(SIGN_IN_INCOMPLETE)
-    return _public_login_result(payload)
+        return _browser_child_failure(
+            "browser_child_failed", credential_submission_started=True
+        )
+
+    safe_result = _public_login_result(payload)
+    default_codes = {
+        "blocked": "browser_preparation_error",
+        "sign_in_form_not_found": "sso_form_missing",
+        "login_unconfirmed": "sso_flow_error",
+        "authentication_failed": "sso_rejected_credentials",
+        "authenticated": "signed_in_marker_confirmed",
+    }
+    diagnostic_code = payload.get("diagnostic_code")
+    safe_result["diagnostic_code"] = (
+        diagnostic_code
+        if isinstance(diagnostic_code, str) and diagnostic_code in DIAGNOSTIC_CODES
+        else default_codes[status]
+    )
+    diagnostic_phase = payload.get("diagnostic_phase")
+    if isinstance(diagnostic_phase, str) and diagnostic_phase in DIAGNOSTIC_PHASES:
+        safe_result["diagnostic_phase"] = diagnostic_phase
+    return safe_result
 
 
 def sign_in(alias: str) -> LoginResult:
@@ -278,6 +414,12 @@ def _find_chromium() -> str | None:
     )
 
 
+class HelperStartupError(RuntimeError):
+    def __init__(self, reason_code: str):
+        super().__init__(reason_code)
+        self.reason_code = reason_code
+
+
 def _start_chromium(profile_dir: Path) -> subprocess.Popen | None:
     """Start Chromium with the instance proxy, without changing shared presets."""
     if _chromium_cdp_ready():
@@ -285,12 +427,10 @@ def _start_chromium(profile_dir: Path) -> subprocess.Popen | None:
 
     chrome = _find_chromium()
     if not chrome:
-        raise RuntimeError("The login helper could not find Playwright Chromium.")
+        raise HelperStartupError("chromium_not_found")
     proxy = os.environ.get("UI_BROWSER_PROXY", "").strip()
     if not proxy:
-        raise RuntimeError(
-            "UI_BROWSER_PROXY must be set before the helper starts Chromium."
-        )
+        raise HelperStartupError("proxy_configuration_missing")
 
     command = [
         chrome,
@@ -329,16 +469,14 @@ def _start_chromium(profile_dir: Path) -> subprocess.Popen | None:
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError(
-                "Chromium exited before its DevTools endpoint became ready."
-            )
+            raise HelperStartupError("chromium_exited_before_ready")
         if _chromium_cdp_ready():
             return process
         time.sleep(1)
 
     process.terminate()
     process.wait(timeout=5)
-    raise RuntimeError("Chromium DevTools did not become ready within 60 seconds.")
+    raise HelperStartupError("chromium_devtools_timeout")
 
 
 def main() -> None:
@@ -348,14 +486,25 @@ def main() -> None:
     args = parser.parse_args()
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
         parser.error("stage login helper may bind only to loopback")
-    import uvicorn
+    try:
+        import uvicorn
+    except ImportError:
+        _log_diagnostic(
+            "startup_failed", status="error", reason_code="runtime_dependency_missing"
+        )
+        raise SystemExit(1)
 
-    # A fixed path prevents abandoned profiles from accumulating after restarts.
-    shutil.rmtree(PROFILE_DIR, ignore_errors=True)
-    PROFILE_DIR.mkdir(parents=True)
+    _log_diagnostic("startup", status="starting", reason_code="startup_started")
     browser = None
     try:
+        # A fixed path prevents abandoned profiles from accumulating after restarts.
+        shutil.rmtree(PROFILE_DIR, ignore_errors=True)
+        PROFILE_DIR.mkdir(parents=True)
         browser = _start_chromium(PROFILE_DIR)
+        _log_diagnostic("chromium_ready", status="ready", reason_code="chromium_ready")
+        _log_diagnostic(
+            "http_server_starting", status="starting", reason_code="startup_started"
+        )
         uvicorn.run(
             Starlette(
                 routes=[
@@ -368,6 +517,14 @@ def main() -> None:
             access_log=False,
             log_level="warning",
         )
+    except HelperStartupError as error:
+        _log_diagnostic("startup_failed", status="error", reason_code=error.reason_code)
+        raise SystemExit(1)
+    except Exception:
+        _log_diagnostic(
+            "helper_runtime_failed", status="error", reason_code="helper_runtime_error"
+        )
+        raise SystemExit(1)
     finally:
         if browser and browser.poll() is None:
             browser.terminate()

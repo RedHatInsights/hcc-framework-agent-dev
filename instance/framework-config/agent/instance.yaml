@@ -21,9 +21,13 @@ env:
   BOT_CONFIG_PATH: instance/framework-config
   BOT_EXECUTION_ENGINE: coordinator
 # Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+# Non-secret notify settings preserve the legacy devbot-framework digest
+# behavior (daily digest at 11 UTC); both must be set to enable digest mode.
 sandbox:
   env:
     SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'SLACK_WEBHOOK_URL') }}"
+    SLACK_NOTIFY_MODE: daily_digest
+    SLACK_DIGEST_HOUR: '11'
 preflights:
   - gh-pr-status
   - gl-mr-status

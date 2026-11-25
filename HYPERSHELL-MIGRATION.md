@@ -69,6 +69,16 @@ the per-profile webhook:
 | `manager-tasks` | `MANAGER_TASKS_SLACK_WEBHOOK_URL` | `SLACK_WEBHOOK_URL` |
 | `quality-monitor` | `QUALITY_MONITOR_SLACK_WEBHOOK_URL` | `SLACK_WEBHOOK_URL` |
 
+Non-secret notify settings ride the same `sandbox.env`: `framework-config`
+and `quality-monitor` set `SLACK_NOTIFY_MODE: daily_digest` and
+`SLACK_DIGEST_HOUR: '11'`, preserving the legacy `devbot-framework` and
+`devbot-framework-quality` deployment values (daily digest at 11 UTC,
+runner-triggered after each cycle). The pinned runtime reads both: the
+coordinator's operational allowlist forwards `SLACK_NOTIFY_MODE` to OpenCode
+children, the Slack helper defaults to `immediate` without it, and the digest
+stays disabled unless `SLACK_DIGEST_HOUR` is set. `manager-tasks` declares no
+digest settings — the legacy `devbot-framework-manager` deployment set none.
+
 `ui-test-agent` declares no `sandbox:` category; it stays inert with
 `preflights: []`. No webhook values or URLs belong in this repository.
 

@@ -12,9 +12,13 @@ env:
   BOT_CONFIG_PATH: instance/quality-monitor
   BOT_EXECUTION_ENGINE: coordinator
 # Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+# Non-secret notify settings preserve the legacy devbot-framework-quality
+# digest behavior (daily digest at 11 UTC); both must be set to enable digest mode.
 sandbox:
   env:
     SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'QUALITY_MONITOR_SLACK_WEBHOOK_URL') }}"
+    SLACK_NOTIFY_MODE: daily_digest
+    SLACK_DIGEST_HOUR: '11'
 preflights:
   - hcc-quality-jira-feedback
   - id: hcc-merged-pr-violations

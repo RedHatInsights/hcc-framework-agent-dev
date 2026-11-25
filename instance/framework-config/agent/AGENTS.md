@@ -47,6 +47,23 @@ Pre-installed: Go 1.24.2 (default), 1.25.7. Available globally via
 Do not run tasks like lint, build, tests and others in parallel; they are memory
 intensive and can kill the environment. Run them sequentially, including Jest.
 
+## Visual verification and PR publication
+
+For this Framework instance, the following exception overrides Jira Sprint's
+“Skip = rejection” rule for visual verification only. It applies to both new
+and existing PRs.
+
+- Attempt visual verification for UI changes. If the environment blocks it
+  (for example, missing proxy runtime, browser, or Console access), or a
+  verified maintainer takes over manual verification, run the available checks
+  and proceed with the normal push to `bot/<TICKET-KEY>`. Do not hold the push
+  solely for the missing visual check.
+- In the PR description or a review reply, state what passed, what remains
+  unverified, and how to verify it manually. Record any maintainer handoff.
+  An isolated preview is not proof of a full Console render.
+- Do not mark a known regression ready for merge. All other verification and
+  push restrictions still apply.
+
 ## Specialist subagents
 
 Use the profile-local subagents in `.opencode/agents/` when ticket scope matches

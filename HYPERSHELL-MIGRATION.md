@@ -34,7 +34,7 @@ the HyperShell tier policy. The reconciliation is recorded next to
 
 ### Catalog and allowlist gates
 
-- The pinned runner (`dev-bot` submodule `bcb2c34`) declares only Luna and Terra
+- The pinned runner (`dev-bot` submodule `f23332e`) declares only Luna and Terra
   under packaged `rehor-openai` defaults, but prices all three models. The
   instance-owned `opencode-deployment.json` is the effective catalog:
   `framework-config` declares Sol, Terra and Luna; `manager-tasks` and
@@ -72,7 +72,7 @@ the per-profile webhook:
 `ui-test-agent` declares no `sandbox:` category; it stays inert with
 `preflights: []`. No webhook values or URLs belong in this repository.
 
-Rollout dependency: rendering (Rehor #681/#688 in the pinned `bcb2c34`) fails
+Rollout dependency: rendering (Rehor #681/#688 in the pinned `f23332e`) fails
 closed — dispatch is rejected when the tier-2 Secret or any referenced key is
 missing — so the Secret must be provisioned with all three keys through
 app-interface and the deployed dispatcher image must support rendering before
@@ -80,7 +80,7 @@ these profiles are enabled.
 
 ## Before rollout
 
-1. Rehor core prerequisites are merged through master `bcb2c34`
+1. Rehor core prerequisites are merged through master `f23332e`
    ([#667](https://github.com/OpenShift-Fleet/rehor/pull/667) HCC preflights,
    [#668](https://github.com/OpenShift-Fleet/rehor/pull/668) top-level env,
    [#678](https://github.com/OpenShift-Fleet/rehor/pull/678),
@@ -128,7 +128,7 @@ these profiles are enabled.
 
 ## Post-rollout opportunities
 
-- Rehor #681 (in the pinned `bcb2c34`) renders `${{ secret('name','key') }}`
+- Rehor #681 (in the pinned `f23332e`) renders `${{ secret('name','key') }}`
   placeholders in `sandbox.env` from tier-2 labeled Kubernetes Secrets synced
   from Vault. The Slack webhooks now use this mechanism (see "Slack webhook
   tier-2 secrets"); once the deployed dispatcher is confirmed and any further

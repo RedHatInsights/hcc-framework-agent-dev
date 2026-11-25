@@ -53,6 +53,31 @@ the HyperShell tier policy. The reconciliation is recorded next to
 - In representative cycles, verify usage and transcript attribution show the
   intended model per role, not only the configured value.
 
+## Slack webhook tier-2 secrets
+
+Each dispatched profile renders its own Slack webhook into the sandbox from
+the tier-2 Kubernetes Secret `hcc-framework-rehor`, synced from the Vault path
+`secrets/insights-dev/platform-experience-dev/hcc-asdlc/hcc-framework-rehor`.
+The sandbox environment name is `SLACK_WEBHOOK_URL` for every profile — the
+pinned coordinator's operational allowlist forwards exactly that name to
+OpenCode children and the Slack helper reads it — while the Vault key selects
+the per-profile webhook:
+
+| Profile | Vault key | Sandbox env |
+|---|---|---|
+| `framework-config` | `SLACK_WEBHOOK_URL` | `SLACK_WEBHOOK_URL` |
+| `manager-tasks` | `MANAGER_TASKS_SLACK_WEBHOOK_URL` | `SLACK_WEBHOOK_URL` |
+| `quality-monitor` | `QUALITY_MONITOR_SLACK_WEBHOOK_URL` | `SLACK_WEBHOOK_URL` |
+
+`ui-test-agent` declares no `sandbox:` category; it stays inert with
+`preflights: []`. No webhook values or URLs belong in this repository.
+
+Rollout dependency: rendering (Rehor #681/#688 in the pinned `bcb2c34`) fails
+closed — dispatch is rejected when the tier-2 Secret or any referenced key is
+missing — so the Secret must be provisioned with all three keys through
+app-interface and the deployed dispatcher image must support rendering before
+these profiles are enabled.
+
 ## Before rollout
 
 1. Rehor core prerequisites are merged through master `bcb2c34`
@@ -81,7 +106,10 @@ the HyperShell tier policy. The reconciliation is recorded next to
    comes from deployment secrets; validate assigned-ticket behavior before cutover.
 3. Verify dispatcher private-runtime support, model tier declarations and gateway
    allowlist, Git/Jira/memory and Slack connectivity, required environment and
-   sandbox policy with the promoted image. Configure the dispatcher and repository
+   sandbox policy with the promoted image. The tier-2 Secret
+   `hcc-framework-rehor` must be provisioned with all three webhook keys
+   before dispatch; see "Slack webhook tier-2 secrets". Configure the
+   dispatcher and repository
    in app-interface separately;
    this PR does not change GitOps. The UI-test profile is intentionally declared
    with `preflights: []`: discovery requires an image for every profile, but its
@@ -102,13 +130,12 @@ the HyperShell tier policy. The reconciliation is recorded next to
 
 - Rehor #681 (in the pinned `bcb2c34`) renders `${{ secret('name','key') }}`
   placeholders in `sandbox.env` from tier-2 labeled Kubernetes Secrets synced
-  from Vault. This draft intentionally uses no `sandbox:` category and converts
-  no values: the stage dispatcher image with rendering support is not deployed
-  yet, and every current profile `env` value is a non-secret `BOT_*` setting.
-  Once the deployed dispatcher is confirmed and any tier-2 Secrets are
-  provisioned through app-interface, confidential per-profile values can move
-  from deployment-owned configuration into `sandbox.env` secret references
-  instead of being passed through the deployment.
+  from Vault. The Slack webhooks now use this mechanism (see "Slack webhook
+  tier-2 secrets"); once the deployed dispatcher is confirmed and any further
+  tier-2 Secrets are provisioned through app-interface, other confidential
+  per-profile values can move from deployment-owned configuration into
+  `sandbox.env` secret references instead of being passed through the
+  deployment.
 
 ## Rollback
 

@@ -11,6 +11,10 @@ env:
   BOT_LABEL: hcc-ai-manager
   BOT_CONFIG_PATH: instance/manager-tasks
   BOT_EXECUTION_ENGINE: coordinator
+# Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+sandbox:
+  env:
+    SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'MANAGER_TASKS_SLACK_WEBHOOK_URL') }}"
 preflights:
   - id: hcc-weekly-report
     with:

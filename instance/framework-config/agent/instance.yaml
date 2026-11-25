@@ -20,6 +20,10 @@ env:
   BOT_INCLUDE_BACKLOG: 'true'
   BOT_CONFIG_PATH: instance/framework-config
   BOT_EXECUTION_ENGINE: coordinator
+# Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+sandbox:
+  env:
+    SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'SLACK_WEBHOOK_URL') }}"
 preflights:
   - gh-pr-status
   - gl-mr-status

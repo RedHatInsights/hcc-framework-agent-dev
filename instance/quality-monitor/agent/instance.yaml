@@ -11,6 +11,10 @@ env:
   BOT_LABEL: hcc-ai-quality
   BOT_CONFIG_PATH: instance/quality-monitor
   BOT_EXECUTION_ENGINE: coordinator
+# Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+sandbox:
+  env:
+    SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'QUALITY_MONITOR_SLACK_WEBHOOK_URL') }}"
 preflights:
   - hcc-quality-jira-feedback
   - id: hcc-merged-pr-violations

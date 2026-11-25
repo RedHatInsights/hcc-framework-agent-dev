@@ -3,6 +3,38 @@ source: scheduled
 runtime: opencode
 provider: rehor-openai
 model: gpt-6-luna
+image:
+  repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+  tag: latest
+env:
+  BOT_INSTANCE_ID: Judge Dredd
+  BOT_LABEL: hcc-ai-quality
+  BOT_CONFIG_PATH: instance/quality-monitor
+  BOT_EXECUTION_ENGINE: coordinator
+# Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+# Non-secret notify settings preserve the legacy devbot-framework-quality
+# digest behavior (daily digest at 11 UTC); both must be set to enable digest mode.
+sandbox:
+  env:
+    SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'QUALITY_MONITOR_SLACK_WEBHOOK_URL') }}"
+    SLACK_NOTIFY_MODE: daily_digest
+    SLACK_DIGEST_HOUR: '11'
+preflights:
+  - hcc-quality-jira-feedback
+  - id: hcc-merged-pr-violations
+    with:
+      scan_only_repos: [insights-chrome, landing-page-frontend, astro-virtual-assistant-frontend]
+  - id: hcc-test-anti-pattern-scan
+    with:
+      scan_only_repos: [insights-chrome, landing-page-frontend, astro-virtual-assistant-frontend]
+# Legacy KEDA window of devbot-framework-quality (deploy/template defaults,
+# matching the quality preflights' own Mon-Fri 09:00-23:00 Prague window):
+# the dispatcher starts no sessions outside it; in-flight sessions drain.
+schedule:
+  triggers:
+    - timezone: Europe/Prague
+      start: "0 9 * * 1-5"
+      end: "0 23 * * 1-5"
 envs:
   - slack
   - node

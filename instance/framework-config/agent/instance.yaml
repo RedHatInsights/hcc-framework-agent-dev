@@ -4,7 +4,44 @@ source: jira
 # runtime defaults; native subagents and MCP settings apply only to OpenCode.
 runtime: opencode
 provider: rehor-openai
-model: gpt-6.1-terra
+# Coordination/review tier. Implementation subagents select Terra in their own
+# frontmatter; the runner-selected root model wins for the primary session.
+# #117 (gpt-6.1-terra for this developing instance) is carried by the Terra
+# implementation subagents; the root stays on the Sol coordination tier.
+model: gpt-6.1-sol
+image:
+  repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+  tag: latest
+env:
+  BOT_INSTANCE_ID: Řehoř Hrubý z Jelení
+  BOT_LABEL: hcc-ai-bot
+  BOT_BOARD_NAME: HCC Framework
+  BOT_SPRINT_PREFIX: HCC framework Sprint
+  BOT_INCLUDE_BACKLOG: 'true'
+  BOT_CONFIG_PATH: instance/framework-config
+  BOT_EXECUTION_ENGINE: coordinator
+# Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+# Non-secret notify settings preserve the legacy devbot-framework digest
+# behavior (daily digest at 11 UTC); both must be set to enable digest mode.
+sandbox:
+  env:
+    SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'SLACK_WEBHOOK_URL') }}"
+    SLACK_NOTIFY_MODE: daily_digest
+    SLACK_DIGEST_HOUR: '11'
+preflights:
+  - gh-pr-status
+  - gl-mr-status
+  - id: jira-sprint
+    with:
+      label: hcc-ai-bot
+      include_backlog: true
+# Legacy KEDA window of devbot-framework (deploy/template defaults): the
+# dispatcher starts no sessions outside it; in-flight sessions drain.
+schedule:
+  triggers:
+    - timezone: Europe/Prague
+      start: "0 9 * * 1-5"
+      end: "0 23 * * 1-5"
 envs:
   - node
   - go

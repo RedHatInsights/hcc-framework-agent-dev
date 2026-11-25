@@ -3,6 +3,30 @@ source: scheduled
 runtime: opencode
 provider: rehor-openai
 model: gpt-6-luna
+image:
+  repository: quay.io/redhat-services-prod/hcc-platex-services/hcc-framework-agent-dev
+  tag: latest
+env:
+  BOT_INSTANCE_ID: Karel Čtvrtý, Otec vlasti z Karlštejna
+  BOT_LABEL: hcc-ai-manager
+  BOT_CONFIG_PATH: instance/manager-tasks
+  BOT_EXECUTION_ENGINE: coordinator
+# Tier-2 Slack webhook secret; see HYPERSHELL-MIGRATION.md.
+sandbox:
+  env:
+    SLACK_WEBHOOK_URL: "${{ secret('hcc-framework-rehor', 'MANAGER_TASKS_SLACK_WEBHOOK_URL') }}"
+preflights:
+  - id: hcc-weekly-report
+    with:
+      repo: RedHatInsights/weekly-status
+# Legacy KEDA window of devbot-framework-manager (app-interface deploy.yml,
+# Mon/Tue/Wed/Fri): the dispatcher starts no sessions outside it; in-flight
+# sessions drain.
+schedule:
+  triggers:
+    - timezone: Europe/Prague
+      start: "0 7 * * 1-3,5"
+      end: "0 21 * * 1-3,5"
 envs:
   - slack
   - node

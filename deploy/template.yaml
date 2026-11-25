@@ -62,6 +62,9 @@ parameters:
   value: "0 9 * * 1-5"
 - name: KEDA_CRON_END
   value: "0 23 * * 1-5"
+- name: KEDA_PAUSED
+  value: "false"
+  description: Pause the KEDA cron scaler for a coordinated cutover. Pair with BOT_REPLICAS=0 to stop the workload; KEDA's paused annotation alone freezes the current replica count.
 objects:
 
 # ============================================================================
@@ -321,10 +324,20 @@ objects:
 # --- KEDA Cron Scaler ---
 # Override KEDA_TIMEZONE, KEDA_CRON_START, KEDA_CRON_END per deployment
 # target in the app-interface SaaS file.
+#
+# KEDA_PAUSED is an opt-in temporary cutover switch, not an offboarding path.
+# KEDA's paused annotation stops the scale loop and deletes the generated HPA,
+# but keeps the target at its current replica count. To stop the workload,
+# set BOT_REPLICAS=0 in the same deployment parameters so the warm pool
+# converges to zero; pausing alone does not scale it down. Set KEDA_PAUSED
+# back to "false" (or remove the annotation) to resume the existing cron
+# window with the cron trigger unchanged.
 - apiVersion: keda.sh/v1alpha1
   kind: ScaledObject
   metadata:
     name: ${BOT_NAME}-cron-scaler
+    annotations:
+      autoscaling.keda.sh/paused: "${KEDA_PAUSED}"
     labels:
       app.kubernetes.io/name: ${BOT_NAME}
       app.kubernetes.io/part-of: devbot

@@ -45,6 +45,7 @@ htmlcov/
 
 # Project-specific
 *.md
+!**/.opencode/skills/*/SKILL.md
 !README.md
 !CLAUDE.md
 !DEPLOYMENT.md

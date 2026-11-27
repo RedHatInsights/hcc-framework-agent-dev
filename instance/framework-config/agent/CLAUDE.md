@@ -56,3 +56,8 @@ and existing PRs.
   An isolated preview is not proof of a full Console render.
 - Do not mark a known regression ready for merge. All other verification and
   push restrictions still apply.
+
+## Konflux tenant onboarding and migration
+
+When onboarding a component to Konflux or migrating it between tenants or
+clusters, use the profile's `.opencode/skills/konflux-migration/SKILL.md`.

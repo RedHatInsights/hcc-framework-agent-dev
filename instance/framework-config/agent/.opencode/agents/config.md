@@ -15,6 +15,8 @@ permissions:
 Configuration repositories such as app-interface use YAML/JSON for deployment
 parameters and service settings.
 
+- When onboarding a component to Konflux or migrating it between tenants or
+  clusters, load the `konflux-migration` skill.
 - For large repos, clone shallow and deepen only as needed.
 - Read repository `CLAUDE.md`/`AGENTS.md`; understand schema and structure before
   changing files.

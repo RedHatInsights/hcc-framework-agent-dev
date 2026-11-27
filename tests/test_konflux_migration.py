@@ -60,3 +60,50 @@ def test_release_behavior(tmp_path, before, after, policy, expected):
     )
     assert result.returncode == int(bool(expected)), result.stderr
     assert result.stdout.partition(":")[0] == expected
+
+
+@pytest.mark.parametrize(
+    "change,expected",
+    [
+        ("drop-inherited-tag", "tags"),
+        ("change-default-format", "timestampFormat"),
+        ("override-format", "timestampFormat"),
+        ("redistribute-equivalent-tags", ""),
+    ],
+)
+def test_widget_layout_sc_effective_tags(tmp_path, change, expected):
+    src = Path(__file__).parent / "fixtures/widget-layout-sc.yaml"
+    doc = yaml.safe_load(src.read_text())
+    mapping = doc["spec"]["data"]["mapping"]
+    defaults = mapping["defaults"]
+    component = mapping["components"][0]
+    repo = component["repositories"][0]
+    old_url = repo["url"]
+    repo["url"] = "new/widget-layout-sc"
+    if change == "drop-inherited-tag":
+        defaults.pop("tags")
+    elif change == "change-default-format":
+        defaults["timestampFormat"] = "%s"
+    elif change == "override-format":
+        component["timestampFormat"] = "%Y"
+    else:
+        component["componentTags"] = defaults.pop("tags")
+        repo["tags"] = component["componentTags"].copy()
+        component["timestampFormat"] = defaults.pop("timestampFormat")
+    dst = tmp_path / "destination.yaml"
+    dst.write_text(yaml.safe_dump(doc))
+    result = subprocess.run(
+        [
+            sys.executable,
+            SKILL / "check_rpa.py",
+            src,
+            dst,
+            component["name"],
+            old_url,
+            repo["url"],
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == int(bool(expected)), result.stderr
+    assert result.stdout.partition(":")[0] == expected

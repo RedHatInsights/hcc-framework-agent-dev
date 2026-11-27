@@ -1,0 +1,14 @@
+kind: ReleasePlanAdmission
+spec:
+  policy: consoledot-frontend-standard
+  data:
+    mapping:
+      components:
+        - name: widget-layout-sc
+          public: true
+          repositories:
+            - url: quay.io/redhat-services-prod/hcc-platex-services/widget-layout-sc/widget-layout-sc
+      defaults:
+        tags:
+          - "sc-{{ timestamp }}-{{ git_short_sha }}"
+        timestampFormat: "%Y%m%d"

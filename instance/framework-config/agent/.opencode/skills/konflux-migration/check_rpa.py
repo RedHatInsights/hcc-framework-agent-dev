@@ -19,15 +19,24 @@ def settings(path, component, url):
     if doc["kind"] != "ReleasePlanAdmission":
         raise ValueError(f"{path}: not a ReleasePlanAdmission")
     spec = doc["spec"]
-    entry = select(spec["data"]["mapping"]["components"], "name", component)
+    mapping = spec["data"]["mapping"]
+    defaults = mapping.get("defaults") or {}
+    entry = select(mapping["components"], "name", component)
     repo = select(entry["repositories"], "url", url)
     # Keep omission distinct from explicit false: never infer release defaults.
     result = {
         key: entry[key] for key in ("public", "pushSourceContainer") if key in entry
     }
     result["policy"] = spec["policy"]
-    if "tags" in repo:
-        result["tags"] = sorted(repo["tags"])
+    # apply-mapping combines tag templates across all three scopes.
+    result["tags"] = sorted(
+        set(defaults.get("tags") or [])
+        | set(entry.get("componentTags") or [])
+        | set(repo.get("tags") or [])
+    )
+    result["timestampFormat"] = (
+        entry.get("timestampFormat") or defaults.get("timestampFormat") or "%s"
+    )
     return result
 
 

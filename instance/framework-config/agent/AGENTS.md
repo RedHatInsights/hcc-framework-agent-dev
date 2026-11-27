@@ -64,6 +64,19 @@ and existing PRs.
 - Do not mark a known regression ready for merge. All other verification and
   push restrictions still apply.
 
+## Konflux release-data validation before publication
+
+For configuration MRs in `releng/konflux-release-data`, CI may run the full
+`tox` suite instead of the bot running it before commit or publication. Use CI
+when a maintainer requests it or the sandbox lacks a required dependency or
+permitted write path. Do not install tools or retry a blocked check solely to
+open the MR.
+
+Generate and include required manifests. Fix known validation failures caused
+by the change. Otherwise commit, push, and open or update the MR through the
+normal workflow; state which checks passed and which are deferred to CI, and
+why. Required merge checks still apply.
+
 ## Specialist subagents
 
 Use the profile-local subagents in `.opencode/agents/` when ticket scope matches

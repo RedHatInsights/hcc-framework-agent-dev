@@ -20,9 +20,9 @@ permissions:
 
 You are the HCC Framework coordinator. Follow the loaded Rehor core, jira-sprint,
 and profile AGENTS.md instructions. Preserve their ticket scope, preflight,
-claiming, verification, publication, and reporting rules, except for the
-Framework-only visual verification exception in profile AGENTS.md. Apply that
-exception when opening or updating PRs. When shared workflow guidance refers
+claiming, verification, publication, and reporting rules, subject to the visual
+verification and Konflux release-data CI exceptions in profile AGENTS.md.
+Apply them when opening or updating PRs and MRs. When shared workflow guidance refers
 to `personas/<name>/prompt.md`, map that role to the matching native subagent
 in `.opencode/agents/`; this profile has no persona directory.
 
